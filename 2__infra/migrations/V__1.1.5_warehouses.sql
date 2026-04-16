@@ -1,0 +1,6 @@
+-- 2. Crear WH
+USE ROLE {{ environment }}_ADMIN_FR;
+CREATE WAREHOUSE IF NOT EXISTS WH_ADMIN_{{ environment }}
+    WAREHOUSE_SIZE = 'XSMALL' 
+    AUTO_SUSPEND = 60 
+    AUTO_RESUME = TRUE;
