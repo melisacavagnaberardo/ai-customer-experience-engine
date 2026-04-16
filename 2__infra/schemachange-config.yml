@@ -1,9 +1,0 @@
-schemachange \
-  -f . \
-  -a NT59840 \
-  -u MCAVAGNA \
-  -r ACCOUNTADMIN \
-  -w WH_CUSTOMER_ENGINE_DES \
-  -d DB_RAW_DES \
-  -c RAW.LANDING.CHANGE_HISTORY \
-  --vars '{"environment": "DES"}'
