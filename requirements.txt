@@ -2,3 +2,9 @@ snowflake-connector-python
 PyYAML
 streamlit
 schemachange
+sphinx>=7.0
+sphinx-rtd-theme
+myst-parser
+sphinx-autodoc-typehints
+pandas
+python-dotenv
