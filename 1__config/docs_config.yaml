@@ -1,0 +1,28 @@
+project:
+  name: "AI CUSTOMER EXPERIENCE ENGINE"
+  version: "1.0.0"
+  author: "Melisa Cavagna"
+
+paths:
+  source_dir: "7__docs/source"
+  build_dir: "7__docs/build"
+  code_root: "4__app"
+
+sphinx:
+  builder: "html"
+  autodoc: true
+  napoleon: true
+  viewcode: true
+
+include:
+  - "4__app"
+  - "3__models"
+
+exclude:
+  - "__pycache__"
+  - "tests"
+  - "9__data"
+
+output:
+  format: "html"
+  clean_before_build: true
