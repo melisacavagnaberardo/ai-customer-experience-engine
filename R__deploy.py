@@ -99,7 +99,7 @@ def run_sql_file(cursor, file_path: Path):
 # INSERT FUNCTION 
 # =====================================================
 
-def _insert_dataframe(cs, df, table_name, batch_size=100000):
+def insert_dataframe(cs, df, table_name, batch_size=100000):
     df = df.copy()
     df.columns = [c.upper() for c in df.columns]
 
@@ -180,10 +180,10 @@ def run_seed():
         cs.execute("TRUNCATE TABLE TB_REVIEWS_SRC")
 
         print("Loading PRODUCTS")
-        _insert_dataframe(cs, products, "TB_PRODUCTS_SRC")
+        insert_dataframe(cs, products, "TB_PRODUCTS_SRC")
 
         print("Loading REVIEWS")
-        _insert_dataframe(cs, reviews, "TB_REVIEWS_SRC")
+        insert_dataframe(cs, reviews, "TB_REVIEWS_SRC")
 
         print("SEED OK")
 
@@ -229,12 +229,10 @@ def run_schemachange():
     ], env=env, check=True)
 
 
-
-
 # =====================================================
 # MAIN
 # =====================================================
 if __name__ == "__main__":
-    #run_migrations()
+    run_migrations()
     #run_seed()
     run_schemachange()

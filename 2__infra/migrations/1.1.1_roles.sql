@@ -1,11 +1,10 @@
 -- Ejecutado con el rol de máximo nivel (solo para bootstrap del role)
 USE ROLE ACCOUNTADMIN;
-
+USE WAREHOUSE COMPUTE_WH;
 -- =====================================================
 -- 1. Crear el Rol del Proyecto
 -- =====================================================
 CREATE ROLE IF NOT EXISTS {{ environment }}_ADMIN_FR;
-
 -- =====================================================
 -- 2. Jerarquía y asignación (OK si lo necesitas)
 -- =====================================================
