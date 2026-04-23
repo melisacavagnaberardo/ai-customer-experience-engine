@@ -234,5 +234,5 @@ def run_schemachange():
 # =====================================================
 if __name__ == "__main__":
     run_migrations()
-    #run_seed()
+    run_seed()
     run_schemachange()

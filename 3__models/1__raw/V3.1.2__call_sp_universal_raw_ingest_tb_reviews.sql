@@ -27,11 +27,11 @@ Notes:
 */
 
 USE ROLE {{ environment }}_ADMIN_FR;
-USE DATABASE DB_RAW_{{ environment }};
-USE SCHEMA RAW;
+USE DATABASE DB_ADMIN_{{ environment }};
+USE SCHEMA DB_ADMIN_{{ environment }}.PLATFORM;
 
-CALL DB_RAW_{{ environment }}.RAW.SP_UNIVERSAL_BATCH_RAW_INGEST(
-    'AMAZON_BEST_SELLERS_RATINGS_AND_REVIEWS.PUBLIC.REVIEWS',
+CALL DB_ADMIN_{{ environment }}.PLATFORM.SP_UNIVERSAL_BATCH_RAW_INGEST(
+    'DB_SOURCE_{{ environment }}.STAGING.TB_REVIEWS_SRC',
     'REVIEWS',
     '{{ environment }}'
 );
