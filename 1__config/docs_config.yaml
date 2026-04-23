@@ -4,8 +4,8 @@ project:
   author: "Melisa Cavagna"
 
 paths:
-  source_dir: "7__docs/source"
-  build_dir: "7__docs/build"
+  source_dir: "6__docs/source"
+  build_dir: "6__docs/build"
   code_root: "4__app"
 
 sphinx:
@@ -21,7 +21,7 @@ include:
 exclude:
   - "__pycache__"
   - "tests"
-  - "9__data"
+  - "8__data"
 
 output:
   format: "html"

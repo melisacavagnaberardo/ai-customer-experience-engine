@@ -1,0 +1,63 @@
+/* ═══════════════════════════════════════════════════════
+   RTD THEME — Blue Minimalist Professional
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Sidebar nav ───────────────────────────────────────── */
+.wy-nav-side                          { background: #1a3a5c; }
+.wy-side-nav-search                   { background: #12294a; padding: 16px 12px; }
+.wy-side-nav-search input[type=text]  { border-color: #2b6cb0; border-radius: 4px; }
+.wy-side-nav-search > a               { color: #ffffff; font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+.wy-side-nav-search > a:hover         { color: #bee3f8; }
+
+.wy-menu-vertical a                   { color: #c8dff5; }
+.wy-menu-vertical a:hover             { background: #0d2240; color: #ffffff; }
+.wy-menu-vertical li.current > a,
+.wy-menu-vertical li.current > a:hover{ background: #0d2240; color: #ffffff; font-weight: 600; }
+.wy-menu-vertical li.toctree-l1.current > a { border-left: 3px solid #4299e1; }
+.wy-menu-vertical li.toctree-l2.current > a { border-left: 3px solid #63b3ed; }
+
+/* ── Top mobile bar ────────────────────────────────────── */
+.wy-nav-top { background: #1a3a5c; }
+
+/* ── Content area ──────────────────────────────────────── */
+.wy-nav-content                       { background: #ffffff; max-width: 1000px; }
+.wy-nav-content-wrap                  { background: #f5f9ff; }
+
+.rst-content                          { font-family: 'Segoe UI', Arial, sans-serif; color: #1a202c; font-size: 15px; line-height: 1.75; }
+
+/* ── Headings ───────────────────────────────────────────── */
+.rst-content h1 { color: #1a3a5c; border-bottom: 2px solid #2b6cb0; padding-bottom: 8px; margin-top: 0; }
+.rst-content h2 { color: #1a3a5c; border-bottom: 1px solid #bee3f8; padding-bottom: 4px; }
+.rst-content h3 { color: #2b6cb0; }
+.rst-content h4 { color: #2c5282; font-size: 1em; text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* ── Links ──────────────────────────────────────────────── */
+.rst-content a                        { color: #2b6cb0; }
+.rst-content a:hover                  { color: #1a3a5c; text-decoration: underline; }
+
+/* ── Code inline ────────────────────────────────────────── */
+.rst-content code, .rst-content tt   { background: #e8f4fd; color: #1a3a5c; border: none; padding: 1px 5px; border-radius: 3px; font-size: 0.87em; }
+
+/* ── Code blocks ────────────────────────────────────────── */
+.rst-content .highlight               { background: #f0f7ff; border-left: 4px solid #2b6cb0; border-radius: 0 4px 4px 0; }
+.rst-content pre                      { background: #f0f7ff; border: none; }
+
+/* ── API signatures ─────────────────────────────────────── */
+.rst-content dl.py dt,
+.rst-content dl.function dt,
+.rst-content dl.method dt,
+.rst-content dl.class dt             { background: #e8f4fd; border-left: 4px solid #2b6cb0; padding: 7px 14px; border-radius: 0 4px 4px 0; color: #1a3a5c; font-family: monospace; margin-bottom: 6px; }
+
+.rst-content .viewcode-link           { color: #4a7ab5; font-size: 0.8em; }
+
+/* ── Field lists (Args, Returns…) ───────────────────────── */
+.rst-content .field-list th           { color: #2b6cb0; font-weight: 700; min-width: 80px; }
+.rst-content .field-list td           { padding-left: 12px; }
+
+/* ── Notes / warnings / tips ────────────────────────────── */
+.rst-content .note                    { background: #e8f4fd; border-left-color: #2b6cb0; }
+.rst-content .warning                 { background: #fff5f5; border-left-color: #c53030; }
+.rst-content .tip                     { background: #f0fff4; border-left-color: #276749; }
+
+/* ── Footer ─────────────────────────────────────────────── */
+footer                                { color: #718096; font-size: 12px; border-top: 1px solid #e2e8f0; padding-top: 10px; }

@@ -1,0 +1,16 @@
+-- 3. Crear DB y Schema para schemachange
+USE ROLE {{ environment }}_ADMIN_FR;
+
+CREATE SCHEMA IF NOT EXISTS DB_SOURCE_{{ environment }}.STAGING;
+CREATE SCHEMA IF NOT EXISTS DB_ADMIN_{{ environment }}.SCHEMACHANGE;
+CREATE SCHEMA IF NOT EXISTS DB_ADMIN_{{ environment }}.PLATFORM;
+CREATE SCHEMA IF NOT EXISTS DB_ADMIN_{{ environment }}.LOGS;
+CREATE SCHEMA IF NOT EXISTS DB_RAW_{{ environment }}.RAW;
+CREATE SCHEMA IF NOT EXISTS DB_SILVER_{{ environment }}.SILVER;
+CREATE SCHEMA IF NOT EXISTS DB_GOLD_{{ environment }}.GOLD;
+CREATE SCHEMA IF NOT EXISTS DB_GOLD_{{ environment }}.AI;
+CREATE SCHEMA IF NOT EXISTS DB_GOLD_{{ environment }}.APPS;
+
+CREATE STAGE IF NOT EXISTS DB_GOLD_{{ environment }}.APPS.STREAMLIT_STAGE
+    DIRECTORY = (ENABLE = TRUE)
+    COMMENT = 'Stage for Streamlit in Snowflake app files';
