@@ -457,6 +457,7 @@ if __name__ == "__main__":
     DB_GOLD   = f"DB_GOLD_{ENVIRONMENT}"
     ROLE      = f"{ENVIRONMENT}_ADMIN_FR"
 
+
     run_migrations()   # 1 — DDL: roles, databases, schemas, warehouses, stored procedures
     _log_init()        #     └─ initialise pipeline logging table
     run_seed()         # 2 — Load PRODUCTS.csv and REVIEWS.csv into SOURCE layer

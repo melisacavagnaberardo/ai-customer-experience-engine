@@ -8,6 +8,7 @@ Two sections:
                 and database storage. Falls back gracefully (shows —) when
                 the current role lacks ACCOUNT_USAGE access.
 
+                
     2. Logs   — Pipeline stage durations derived from TB_LOGS keywords,
                 followed by the last 50 event log entries.
 """

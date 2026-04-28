@@ -5,6 +5,7 @@ Static introduction to the AI Customer Experience Engine.
 No Snowflake queries — fully static for fast load and demo readiness.
 """
 
+
 import streamlit as st
 from snowflake.snowpark import Session
 

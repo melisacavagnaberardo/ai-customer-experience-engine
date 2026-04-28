@@ -5,6 +5,7 @@ Product ranking and keyword analysis from Cortex AI enrichment.
 
 Layout:
     Row 1 — Best / Worst reviewed products (5 each, by avg sentiment)
+    
     Row 2 — Top keywords (HTML gradient bars)
 """
 

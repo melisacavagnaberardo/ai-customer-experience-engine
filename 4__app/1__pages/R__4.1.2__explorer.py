@@ -11,6 +11,7 @@ Mapping:
 NPS = (% Promoters − % Detractors)  ·  range −100 to +100
 """
 
+
 import pandas as pd
 import streamlit as st
 from snowflake.snowpark import Session
