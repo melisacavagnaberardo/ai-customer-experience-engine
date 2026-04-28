@@ -454,10 +454,9 @@ if __name__ == "__main__":
     DB_GOLD   = f"DB_GOLD_{ENVIRONMENT}"
     ROLE      = f"{ENVIRONMENT}_ADMIN_FR"
 
-    _log_init()
-
     run_migrations()
-    run_seed()   
+    _log_init()
+    run_seed()
     run_schemachange()
     run_app_deploy()
     run_docs()
