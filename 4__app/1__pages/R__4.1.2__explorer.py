@@ -1,19 +1,16 @@
 """
-Explorer Page
-=============
-Filterable, paginated table of enriched reviews.
+Explorer Page — NPS Sentiment Dashboard
+========================================
+Net Promoter Score analytics derived from product review star ratings.
 
-Filters (rendered at top of page):
-    - Star ratings    — multiselect (1-5)
-    - Sentiment range — range slider (-1 to +1)
-    - ASIN            — text input substring match
-    - Status          — radio (All / FAST_ONLY / FULLY_ENRICHED)
+Mapping:
+    1–2 stars  → Detractors
+    3–4 stars  → Passives
+    5 stars    → Promoters
 
-Results are fetched from Snowflake with the filters pushed to SQL (max 500 rows).
-A CSV export button is available below the table.
+NPS = (% Promoters − % Detractors)  ·  range −100 to +100
 """
 
-import pandas as pd
 import streamlit as st
 from snowflake.snowpark import Session
 
@@ -22,113 +19,265 @@ from pathlib import Path
 
 _SRVCS = Path(__file__).resolve().parents[1] / "2__services"
 
+
 def _load(path):
+    """Load a Python module from *path*, handling dotted filenames via spec_from_file_location."""
     spec = importlib.util.spec_from_file_location(path.stem.split("__")[-1], path)
     mod  = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
 
+
 _q = _load(_SRVCS / "R__4.2.1__queries.py")
-get_reviews_filtered = _q.get_reviews_filtered
+get_nps_summary               = _q.get_nps_summary
+get_stars_sentiment_breakdown = _q.get_stars_sentiment_breakdown
+
+_NAVY      = "#1a3a5c"
+_TEAL      = "#2b6cb0"
+_DETRACTOR = "#c53030"
+_PASSIVE   = "#d69e2e"
+_PROMOTER  = "#276749"
 
 
-def _filters() -> tuple:
-    """Render the filter row and return the selected values.
+def _pct(n: int, total: int) -> float:
+    """Return *n* as a percentage of *total*, rounded to 1 decimal; 0.0 when total is zero."""
+    return round(n / total * 100, 1) if total else 0.0
 
-    Returns:
-        Tuple of ``(stars, min_sent, max_sent, asin_filter, status_filter)``.
+
+def _nps(total: int, promoters: int, detractors: int) -> int:
+    """Return NPS score = round(% promoters − % detractors); 0 when total is zero."""
+    return round((_pct(promoters, total) - _pct(detractors, total))) if total else 0
+
+
+def _nps_color(score: int) -> str:
+    """Return a hex colour for an NPS score: green ≥ 30, yellow ≥ 0, red otherwise."""
+    if score >= 30: return _PROMOTER
+    if score >= 0:  return _PASSIVE
+    return _DETRACTOR
+
+
+def _kpi_card(label: str, value: str, sub: str, border: str, val_color: str) -> str:
+    """Return HTML for a styled KPI metric card with label, value, subtitle, and accent colour."""
+    return (
+        f"<div style='background:#fff;border:1px solid #e2e8f0;"
+        f"border-left:4px solid {border};border-radius:8px;"
+        f"padding:14px 16px;box-shadow:0 1px 4px rgba(26,58,92,0.05);height:100%;'>"
+        f"<div style='font-size:11px;color:#718096;margin-bottom:4px;"
+        f"text-transform:uppercase;letter-spacing:0.5px;'>{label}</div>"
+        f"<div style='font-size:26px;font-weight:800;color:{val_color};'>{value}</div>"
+        f"<div style='font-size:11px;color:#a0aec0;margin-top:2px;'>{sub}</div>"
+        f"</div>"
+    )
+
+
+def _bars_html(df) -> str:
+    """Return HTML for the stacked sentiment-by-star-rating bar chart.
+
+    Each row shows the % positive (green), neutral (yellow), and negative (red)
+    sentiment for that star level. Includes a colour legend at the bottom.
     """
-    c1, c2, c3, c4 = st.columns([2, 2, 2, 2])
+    if df.empty:
+        return "<div style='color:#718096;font-size:12px;'>No data.</div>"
 
-    stars = c1.multiselect(
-        "Stars",
-        options=[1, 2, 3, 4, 5],
-        default=[1, 2, 3, 4, 5],
+    rows = ""
+    for _, row in df.sort_values("STARS", ascending=False).iterrows():
+        stars    = int(row["STARS"])
+        star_str = "★" * stars + "☆" * (5 - stars)
+        pos = max(0.0, float(row.get("PCT_POSITIVE", 0) or 0))
+        neu = max(0.0, float(row.get("PCT_NEUTRAL",  0) or 0))
+        neg = max(0.0, float(row.get("PCT_NEGATIVE", 0) or 0))
+
+        pos_txt = f"{pos:.0f}%" if pos >= 8 else ""
+        neu_txt = f"{neu:.0f}%" if neu >= 8 else ""
+        neg_txt = f"{neg:.0f}%" if neg >= 8 else ""
+
+        rows += (
+            f"<div style='margin-bottom:10px;'>"
+            f"<div style='font-size:12px;font-weight:600;color:{_NAVY};margin-bottom:4px;'>"
+            f"{stars} {star_str}</div>"
+            f"<div style='display:flex;border-radius:5px;overflow:hidden;height:26px;'>"
+            f"<div style='width:{pos}%;background:{_PROMOTER};display:flex;align-items:center;"
+            f"justify-content:center;font-size:11px;font-weight:700;color:#fff;'>{pos_txt}</div>"
+            f"<div style='width:{neu}%;background:{_PASSIVE};display:flex;align-items:center;"
+            f"justify-content:center;font-size:11px;font-weight:700;color:#fff;'>{neu_txt}</div>"
+            f"<div style='width:{neg}%;background:{_DETRACTOR};display:flex;align-items:center;"
+            f"justify-content:center;font-size:11px;font-weight:700;color:#fff;'>{neg_txt}</div>"
+            f"</div></div>"
+        )
+
+    legend = (
+        f"<div style='display:flex;gap:14px;margin-top:10px;'>"
+        f"<div style='display:flex;align-items:center;gap:5px;font-size:11px;color:#4a5568;'>"
+        f"<div style='width:10px;height:10px;border-radius:50%;background:{_PROMOTER};flex-shrink:0;'></div>"
+        f" Positive sentiment</div>"
+        f"<div style='display:flex;align-items:center;gap:5px;font-size:11px;color:#4a5568;'>"
+        f"<div style='width:10px;height:10px;border-radius:50%;background:{_PASSIVE};flex-shrink:0;'></div>"
+        f" Neutral</div>"
+        f"<div style='display:flex;align-items:center;gap:5px;font-size:11px;color:#4a5568;'>"
+        f"<div style='width:10px;height:10px;border-radius:50%;background:{_DETRACTOR};flex-shrink:0;'></div>"
+        f" Negative</div>"
+        f"</div>"
     )
 
-    sent_range = c2.slider(
-        "Sentiment range",
-        min_value=-1.0,
-        max_value=1.0,
-        value=(-1.0, 1.0),
-        step=0.05,
+    return (
+        f"<div style='background:#fff;border-radius:10px;padding:16px 18px;"
+        f"box-shadow:0 1px 6px rgba(26,58,92,0.06);height:100%;box-sizing:border-box;'>"
+        f"<div style='font-size:14px;font-weight:700;color:{_NAVY};margin-bottom:3px;'>"
+        f"Sentiment by Star Rating</div>"
+        f"<div style='font-size:11px;color:#718096;margin-bottom:12px;'>"
+        f"% of reviews per star group — positive / neutral / negative sentiment</div>"
+        f"{rows}{legend}"
+        f"</div>"
     )
 
-    asin_filter = c3.text_input("ASIN contains", placeholder="e.g. B0C4Y34Q9L")
 
-    status = c4.radio(
-        "Enrichment status",
-        options=["All", "FAST_ONLY", "FULLY_ENRICHED"],
-        horizontal=True,
-    )
+def _nps_panel_html(promoters: int, passives: int, detractors: int, nps: int) -> str:
+    """Return HTML for the NPS breakdown panel.
 
-    return stars, sent_range[0], sent_range[1], asin_filter, status
-
-
-def _sentiment_color(val: float):
-    """Return a CSS color string based on sentiment polarity.
-
-    Args:
-        val: Sentiment score between -1 and 1.
-
-    Returns:
-        CSS color string.
+    Renders an emoji satisfaction scale, the NPS formula, a CSS conic-gradient
+    donut chart, and a 4-column grid of detractor/passive/promoter/total cards.
     """
-    if val is None:
-        return "color: #718096"
-    if val > 0.2:
-        return "color: #276749; font-weight: 600"
-    if val < -0.2:
-        return "color: #c53030; font-weight: 600"
-    return "color: #d69e2e"
+    total_d  = max(promoters + passives + detractors, 1)
+    prom_end = promoters / total_d * 100
+    pass_end = prom_end + passives / total_d * 100
+
+    nps_col = _nps_color(nps)
+    sign    = "+" if nps >= 0 else ""
+
+    emoji_items = [
+        ("😁", "5★"), ("😊", "5★"), ("🙂", "5★"),
+        ("😐", "4★"), ("😑", "4★"),
+        ("😕", "3★"), ("😟", "3★"),
+        ("😠", "2★"), ("😡", "2★"), ("🤬", "1★"),
+    ]
+    emoji_html = "".join(
+        f"<div style='text-align:center;'>"
+        f"<div style='font-size:18px;line-height:1;'>{face}</div>"
+        f"<div style='font-size:9px;color:#718096;margin-top:1px;'>{num}</div>"
+        f"</div>"
+        for face, num in emoji_items
+    )
+
+    total_s = promoters + passives + detractors
+    prom_d  = _pct(promoters,  total_s)
+    pass_d  = _pct(passives,   total_s)
+    det_d   = _pct(detractors, total_s)
+
+    return (
+        f"<div style='background:#fff;border-radius:10px;padding:16px 18px;"
+        f"box-shadow:0 1px 6px rgba(26,58,92,0.06);height:100%;box-sizing:border-box;'>"
+
+        f"<div style='font-size:14px;font-weight:700;color:{_NAVY};margin-bottom:8px;'>"
+        f"NPS Breakdown</div>"
+
+        # Emoji scale
+        f"<div style='display:flex;justify-content:center;gap:3px;margin-bottom:8px;'>"
+        f"{emoji_html}</div>"
+
+        # NPS formula
+        f"<div style='font-size:14px;font-weight:700;color:{_NAVY};"
+        f"margin-bottom:10px;text-align:center;'>"
+        f"NPS = <span style='color:{_PROMOTER};'>%Promoters</span>"
+        f" &minus; <span style='color:{_DETRACTOR};'>%Detractors</span></div>"
+
+        # CSS Donut (conic-gradient)
+        f"<div style='display:flex;justify-content:center;margin:10px 0;'>"
+        f"<div style='width:140px;height:140px;border-radius:50%;"
+        f"background:conic-gradient("
+        f"{_PROMOTER} 0% {prom_end:.1f}%,"
+        f"{_PASSIVE} {prom_end:.1f}% {pass_end:.1f}%,"
+        f"{_DETRACTOR} {pass_end:.1f}% 100%);"
+        f"display:flex;align-items:center;justify-content:center;'>"
+        f"<div style='width:92px;height:92px;border-radius:50%;background:#fff;"
+        f"display:flex;flex-direction:column;align-items:center;justify-content:center;'>"
+        f"<div style='font-size:30px;font-weight:800;color:{nps_col};line-height:1;'>{sign}{nps}</div>"
+        f"<div style='font-size:10px;color:#718096;'>NPS Score</div>"
+        f"</div></div></div>"
+
+        # Breakdown cards (4-column grid)
+        f"<div style='display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px;'>"
+
+        f"<div style='background:{_DETRACTOR}18;border:1px solid {_DETRACTOR}40;"
+        f"border-radius:7px;padding:10px 6px;text-align:center;'>"
+        f"<div style='font-size:9px;font-weight:700;color:{_DETRACTOR};"
+        f"text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;'>Detractors</div>"
+        f"<div style='font-size:20px;font-weight:800;color:{_DETRACTOR};line-height:1;'>{det_d:.1f}%</div>"
+        f"<div style='font-size:9px;color:#718096;margin-top:2px;'>{detractors:,} reviews</div></div>"
+
+        f"<div style='background:{_PASSIVE}18;border:1px solid {_PASSIVE}40;"
+        f"border-radius:7px;padding:10px 6px;text-align:center;'>"
+        f"<div style='font-size:9px;font-weight:700;color:{_PASSIVE};"
+        f"text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;'>Passives</div>"
+        f"<div style='font-size:20px;font-weight:800;color:{_PASSIVE};line-height:1;'>{pass_d:.1f}%</div>"
+        f"<div style='font-size:9px;color:#718096;margin-top:2px;'>{passives:,} reviews</div></div>"
+
+        f"<div style='background:{_PROMOTER}18;border:1px solid {_PROMOTER}40;"
+        f"border-radius:7px;padding:10px 6px;text-align:center;'>"
+        f"<div style='font-size:9px;font-weight:700;color:{_PROMOTER};"
+        f"text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;'>Promoters</div>"
+        f"<div style='font-size:20px;font-weight:800;color:{_PROMOTER};line-height:1;'>{prom_d:.1f}%</div>"
+        f"<div style='font-size:9px;color:#718096;margin-top:2px;'>{promoters:,} reviews</div></div>"
+
+        f"<div style='background:#f5f9ff;border:1px solid #bee3f8;"
+        f"border-radius:7px;padding:10px 6px;text-align:center;'>"
+        f"<div style='font-size:9px;font-weight:700;color:{_NAVY};"
+        f"text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;'>Total</div>"
+        f"<div style='font-size:20px;font-weight:800;color:{_NAVY};line-height:1;'>{total_s:,}</div>"
+        f"<div style='font-size:9px;color:#718096;margin-top:2px;'>respondents</div></div>"
+
+        f"</div></div>"
+    )
 
 
 def render(session: Session) -> None:
-    st.title("Explorer")
-    st.caption("Filter and browse individual reviews with their AI-generated attributes.")
+    """Render the Explorer page: KPI row, NPS badge, and sentiment-by-star two-panel layout."""
+    st.markdown(
+        f"<div style='font-size:20px;font-weight:800;color:{_NAVY};margin-bottom:3px;'>Explorer</div>"
+        f"<div style='font-size:12px;color:#718096;margin-bottom:14px;'>"
+        "Net Promoter Score derived from product reviews · "
+        "Promoters = 5★ · Passives = 3–4★ · Detractors = 1–2★</div>",
+        unsafe_allow_html=True,
+    )
 
-    stars, min_s, max_s, asin, status = _filters()
-
-    if not stars:
-        st.warning("Select at least one star rating.")
-        return
-
-    st.divider()
-
-    with st.spinner("Querying Snowflake..."):
+    with st.spinner("Loading..."):
         try:
-            df = get_reviews_filtered(session, stars, min_s, max_s, asin, status)
+            nps_data = get_nps_summary(session)
+            bars_df  = get_stars_sentiment_breakdown(session)
         except Exception as e:
-            st.error(f"Query failed: {e}")
+            st.error(f"Failed to load data: {e}")
             return
 
-    # -- Result count + export --
-    hdr, btn = st.columns([4, 1])
-    hdr.markdown(f"**{len(df):,} reviews** found (max 500 returned)")
-    if not df.empty:
-        csv = df.to_csv(index=False).encode("utf-8")
-        btn.download_button(
-            label="Export CSV",
-            data=csv,
-            file_name="reviews_export.csv",
-            mime="text/csv",
-        )
+    total      = int(nps_data.get("total")      or 0)
+    detractors = int(nps_data.get("detractors") or 0)
+    passives   = int(nps_data.get("passives")   or 0)
+    promoters  = int(nps_data.get("promoters")  or 0)
+    nps        = _nps(total, promoters, detractors)
+    nps_col    = _nps_color(nps)
+    nps_label  = "Excellent" if nps >= 50 else "Good" if nps >= 30 else "Needs improvement" if nps >= 0 else "Critical"
 
-    if df.empty:
-        st.info("No reviews match the selected filters.")
-        return
+    # ── KPI row ──────────────────────────────────────────────────────────────
+    k1, k2, k3, k4 = st.columns(4)
+    k1.markdown(_kpi_card("Total Reviews",  f"{total:,}",                       "enriched records",                _TEAL,      _NAVY),      unsafe_allow_html=True)
+    k2.markdown(_kpi_card("NPS Score",      f"{nps:+d}",                        nps_label,                         nps_col,    nps_col),    unsafe_allow_html=True)
+    k3.markdown(_kpi_card("Promoters",      f"{_pct(promoters, total):.1f}%",   f"{promoters:,} reviews (5★)",     _PROMOTER,  _PROMOTER),  unsafe_allow_html=True)
+    k4.markdown(_kpi_card("Detractors",     f"{_pct(detractors, total):.1f}%",  f"{detractors:,} reviews (1–2★)",  _DETRACTOR, _DETRACTOR), unsafe_allow_html=True)
 
-    st.dataframe(
-        df,
-        use_container_width=True,
-        hide_index=True,
-        height=520,
-        column_config={
-            "ASIN":             st.column_config.TextColumn("ASIN", width="small"),
-            "STARS":            st.column_config.NumberColumn("Stars", width="small"),
-            "SENTIMENT":        st.column_config.NumberColumn("Sentiment", format="%.3f", width="small"),
-            "KEYWORDS":         st.column_config.TextColumn("Keywords", width="medium"),
-            "ENRICHMENT_STATUS":st.column_config.TextColumn("Status", width="small"),
-            "BODY_PREVIEW":     st.column_config.TextColumn("Review", width="large"),
-        },
+    # NPS badge
+    st.markdown(
+        f"<div style='margin:6px 0 10px;'>"
+        f"<span style='background:{nps_col}18;color:{nps_col};"
+        f"border:1px solid {nps_col}50;border-radius:20px;"
+        f"padding:4px 16px;font-size:12px;font-weight:600;'>"
+        f"NPS {nps:+d} — {nps_label}"
+        f"</span></div>",
+        unsafe_allow_html=True,
+    )
+
+    # ── Main section — single flex container so both panels match height ──────
+    st.markdown(
+        f"<div style='display:flex;gap:16px;align-items:stretch;'>"
+        f"<div style='flex:5;min-width:0;'>{_bars_html(bars_df)}</div>"
+        f"<div style='flex:6;min-width:0;'>{_nps_panel_html(promoters, passives, detractors, nps)}</div>"
+        f"</div>",
+        unsafe_allow_html=True,
     )

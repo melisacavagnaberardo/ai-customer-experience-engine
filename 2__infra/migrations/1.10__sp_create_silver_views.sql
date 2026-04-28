@@ -45,6 +45,24 @@ def view_name(raw_name):
 
 
 def main(session, SOURCE_DB, SOURCE_SCHEMA, TARGET_DB, TARGET_SCHEMA, ENV):
+    """Create or replace views in *TARGET_DB.TARGET_SCHEMA* mirroring all tables in *SOURCE_DB.SOURCE_SCHEMA*.
+
+    View names follow the ``VW_<TABLE_NAME>`` convention; an existing ``VW_``
+    prefix is stripped to avoid ``VW_VW_`` doubling.  Individual view failures
+    are logged as WARNINGs and skipped so the rest of the schema is still
+    processed.
+
+    Args:
+        session: Active Snowpark session (injected by Snowflake).
+        SOURCE_DB: Database containing the source tables/views.
+        SOURCE_SCHEMA: Schema to reflect (e.g. ``RAW``, ``GOLD``).
+        TARGET_DB: Database where the mirror views will be created.
+        TARGET_SCHEMA: Schema where the mirror views will be created.
+        ENV: Environment prefix (DES/PRE/PRO) — used for query tagging only.
+
+    Returns:
+        ``"SUCCESS: N views created in TARGET_DB.TARGET_SCHEMA"`` on success.
+    """
 
     try:
         session.sql(f"""

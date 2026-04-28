@@ -2,5 +2,5 @@ __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
-6__docs/build/
+8__docs/build/
 .env

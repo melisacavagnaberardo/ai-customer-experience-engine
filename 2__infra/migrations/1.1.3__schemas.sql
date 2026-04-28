@@ -1,4 +1,12 @@
--- 3. Crear DB y Schema para schemachange
+-- =====================================================
+-- 1.1.3__schemas.sql
+-- Layer   : Infrastructure — Schemas & Stages
+-- Purpose : Create all schemas inside the project
+--           databases and the STREAMLIT_STAGE internal
+--           stage used by Streamlit in Snowflake.
+-- Depends : 1.1.2__databases.sql
+-- =====================================================
+
 USE ROLE {{ environment }}_ADMIN_FR;
 
 CREATE SCHEMA IF NOT EXISTS DB_SOURCE_{{ environment }}.STAGING;

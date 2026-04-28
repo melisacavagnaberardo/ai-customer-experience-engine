@@ -6,7 +6,7 @@ Unit tests for pure Python utility functions.
 Covers:
 - ``split_sql``  — SQL statement splitter in ``R__deploy.py``
 - ``clean_value`` — NULL normaliser in ``R__deploy.py``
-- ``view_name``   — VW_ prefix logic mirrored from ``SP_CREATE_VIEWS``
+- ``view_name``   — ``VW_`` prefix logic mirrored from ``SP_CREATE_VIEWS``
 
 All tests run without a Snowflake connection.
 """

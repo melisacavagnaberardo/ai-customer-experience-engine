@@ -1,7 +1,0 @@
-R\_\_8 module
-=============
-
-.. automodule:: R__8
-   :members:
-   :show-inheritance:
-   :undoc-members:

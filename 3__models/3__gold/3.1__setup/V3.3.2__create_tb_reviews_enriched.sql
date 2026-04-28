@@ -41,8 +41,8 @@ USE DATABASE DB_GOLD_{{ environment }};
 USE SCHEMA AI;
 
 -- ============================================================
--- Tabla de reviews enriquecidas con IA (Cortex)
--- DDL puro: la carga la hace V3.3.3
+-- AI-enriched reviews table (Cortex SENTIMENT + keyword extraction)
+-- Pure DDL: data is loaded by V3.3.3 (FAST_ONLY) and V3.3.4 (FULLY_ENRICHED)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS TB_REVIEWS_ENRICHED (
     ID                 STRING        NOT NULL,

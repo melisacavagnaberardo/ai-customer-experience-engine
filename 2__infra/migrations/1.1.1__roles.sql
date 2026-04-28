@@ -1,19 +1,19 @@
--- Ejecutado con el rol de máximo nivel (solo para bootstrap del role)
+-- Requires ACCOUNTADMIN — used only for initial bootstrap of project roles
 USE ROLE ACCOUNTADMIN;
 USE WAREHOUSE COMPUTE_WH;
 -- =====================================================
--- 1. Crear el Rol del Proyecto
+-- 1. Create project roles
 -- =====================================================
 CREATE ROLE IF NOT EXISTS {{ environment }}_ADMIN_FR;
 CREATE ROLE IF NOT EXISTS {{ environment }}_REPORT_FR;
 -- =====================================================
--- 2. Jerarquía y asignación (OK si lo necesitas)
+-- 2. Role hierarchy and assignment
 -- =====================================================
 GRANT ROLE {{ environment }}_ADMIN_FR TO ROLE SYSADMIN;
 GRANT ROLE {{ environment }}_ADMIN_FR TO USER MCAVAGNA;
 
 -- =====================================================
--- 3. Permisos a nivel de cuenta (infra básica)
+-- 3. Account-level permissions (infrastructure bootstrap)
 -- =====================================================
 GRANT CREATE DATABASE ON ACCOUNT TO ROLE {{ environment }}_ADMIN_FR;
 GRANT CREATE WAREHOUSE ON ACCOUNT TO ROLE {{ environment }}_ADMIN_FR;

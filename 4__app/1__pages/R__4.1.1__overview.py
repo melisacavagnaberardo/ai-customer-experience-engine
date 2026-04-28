@@ -1,166 +1,164 @@
 """
-Overview Page
-=============
-Landing page after login. Shows headline KPIs and sentiment distribution charts.
-
-Layout:
-    Row 1 — 4 KPI metric cards
-    Row 2 — Donut (STARS distribution) + Bar (avg sentiment per STARS)
-    Row 3 — Table of most polarised reviews
+Overview Page — Application Landing
+=====================================
+Static introduction to the AI Customer Experience Engine.
+No Snowflake queries — fully static for fast load and demo readiness.
 """
 
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
 import streamlit as st
 from snowflake.snowpark import Session
 
-import importlib.util
-from pathlib import Path
+_NAVY = "#1a3a5c"
+_TEAL = "#2b6cb0"
+_GH   = "https://github.com/melisacavagnaberardo/ai-customer-experience-engine-Private"
 
-_SRVCS = Path(__file__).resolve().parents[1] / "2__services"
+_MODULES = [
+    ("📊", "Explorer",
+     "NPS-style sentiment dashboard. Visualise promoter / passive / detractor "
+     "distribution derived from product reviews, broken down by star rating."),
+    ("🤖", "AI Insights",
+     "Cortex enrichment analytics — top extracted keywords and product ranking "
+     "across the full catalogue."),
+    ("⚙️", "Admin Panel",
+     "Pipeline health and processing costs at a glance. Monitor enrichment "
+     "throughput and inspect the operational event log in real time."),
+]
 
-def _load(path):
-    spec = importlib.util.spec_from_file_location(path.stem.split("__")[-1], path)
-    mod  = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+_STEPS = [
+    ("1", "Ingest",  "Raw product reviews land in the SOURCE layer via the schemachange ETL pipeline."),
+    ("2", "Enrich",  "Snowflake Cortex runs sentiment scoring and keyword extraction on every review."),
+    ("3", "Analyse", "Interactive dashboards surface the enriched data for product and CX teams."),
+]
 
-_q = _load(_SRVCS / "R__4.2.1__queries.py")
-get_kpis = _q.get_kpis
-get_sentiment_by_stars = _q.get_sentiment_by_stars
-get_stars_distribution = _q.get_stars_distribution
-get_top_reviews = _q.get_top_reviews
+_TECH = ["Snowflake", "Cortex AI", "Streamlit in Snowflake", "Snowpark Python", "Plotly", "schemachange"]
 
-
-# ---------------------------------------------------------------------------
-# Palette — consistent with the project design token
-# ---------------------------------------------------------------------------
-STAR_COLORS = {1: "#c53030", 2: "#dd6b20", 3: "#d69e2e", 4: "#2b6cb0", 5: "#276749"}
-NAVY = "#1a3a5c"
-
-
-def _kpi_row(kpis: dict) -> None:
-    """Render the four headline metric cards.
-
-    Args:
-        kpis: Dict returned by ``get_kpis()``.
-    """
-    c1, c2, c3, c4 = st.columns(4)
-
-    total   = int(kpis.get("total") or 0)
-    avg_s   = float(kpis.get("avg_sentiment") or 0)
-    pct_fe  = float(kpis.get("pct_fully_enriched") or 0)
-    pct_neg = float(kpis.get("pct_negative") or 0)
-
-    sentiment_delta = f"{avg_s:+.3f}"
-
-    c1.metric("Total Reviews",       f"{total:,}")
-    c2.metric("Avg Sentiment",        f"{avg_s:.3f}",  sentiment_delta)
-    c3.metric("Fully Enriched",       f"{pct_fe:.1f}%")
-    c4.metric("Negative Sentiment",   f"{pct_neg:.1f}%")
-
-
-def _charts_row(dist_df: pd.DataFrame, sentiment_df: pd.DataFrame) -> None:
-    """Render the STARS donut and sentiment bar chart side by side.
-
-    Args:
-        dist_df: DataFrame from ``get_stars_distribution()``.
-        sentiment_df: DataFrame from ``get_sentiment_by_stars()``.
-    """
-    col_left, col_right = st.columns(2)
-
-    # -- Donut: STARS distribution --
-    with col_left:
-        st.subheader("Rating Distribution")
-        if dist_df.empty:
-            st.info("No data available.")
-        else:
-            colors = [STAR_COLORS.get(s, NAVY) for s in dist_df["STARS"]]
-            fig = go.Figure(go.Pie(
-                labels=[f"{s} star" for s in dist_df["STARS"]],
-                values=dist_df["COUNT"],
-                hole=0.55,
-                marker_colors=colors,
-                textinfo="percent+label",
-                hovertemplate="%{label}: %{value:,} reviews<extra></extra>",
-            ))
-            fig.update_layout(
-                showlegend=False,
-                margin=dict(t=20, b=20, l=0, r=0),
-                height=320,
-                paper_bgcolor="rgba(0,0,0,0)",
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-    # -- Bar: avg sentiment per STARS --
-    with col_right:
-        st.subheader("Avg Sentiment by Rating")
-        if sentiment_df.empty:
-            st.info("No data available.")
-        else:
-            colors = [STAR_COLORS.get(s, NAVY) for s in sentiment_df["STARS"]]
-            colors = [STAR_COLORS.get(int(s), NAVY) for s in sentiment_df["STARS"]]
-            fig = px.bar(
-                sentiment_df,
-                x="STARS",
-                y="AVG_SENTIMENT",
-                labels={"STARS": "Stars", "AVG_SENTIMENT": "Avg Sentiment"},
-                text_auto=".3f",
-            )
-            fig.update_traces(marker_color=colors)
-            fig.add_hline(y=0, line_dash="dot", line_color="#718096", line_width=1)
-            fig.update_layout(
-                showlegend=False,
-                margin=dict(t=20, b=20, l=0, r=0),
-                height=320,
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                yaxis=dict(range=[-1, 1], gridcolor="#e2e8f0"),
-                xaxis=dict(tickmode="linear"),
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-
-def _top_reviews_table(df: pd.DataFrame) -> None:
-    """Render the most polarised reviews table.
-
-    Args:
-        df: DataFrame from ``get_top_reviews()``.
-    """
-    st.subheader("Most Polarised Reviews")
-    if df.empty:
-        st.info("No data available.")
-        return
-
-    st.dataframe(
-        df,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "SENTIMENT":   st.column_config.NumberColumn("Sentiment", format="%.3f"),
-            "STARS":       st.column_config.NumberColumn("Stars"),
-            "BODY_PREVIEW": st.column_config.TextColumn("Review Preview", width="large"),
-        },
-    )
+_GH_ICON = (
+    '<svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">'
+    '<path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 '
+    '0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-'
+    '.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07'
+    '-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-'
+    '.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 '
+    '1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73'
+    '.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>'
+    '</svg>'
+)
 
 
 def render(session: Session) -> None:
-    st.title("Overview")
-    st.caption("Headline metrics across all enriched reviews.")
+    """Render the static Overview landing page.
 
-    with st.spinner("Loading..."):
-        try:
-            kpis         = get_kpis(session)
-            dist_df      = get_stars_distribution(session)
-            sentiment_df = get_sentiment_by_stars(session)
-            top_df       = get_top_reviews(session)
-        except Exception as e:
-            st.error(f"Failed to load data: {e}")
-            return
+    Displays: hero banner with GitHub link, application module cards,
+    pipeline steps (Ingest → Enrich → Analyse), and technology stack badges.
+    No Snowflake queries are executed — this page loads instantly.
+    """
+    # ── Hero ────────────────────────────────────────────────────────────────
+    st.markdown(
+        f"""
+        <div style="background:linear-gradient(135deg,{_NAVY} 0%,{_TEAL} 100%);
+            border-radius:10px;padding:22px 28px;margin-bottom:16px;
+            box-shadow:0 4px 16px rgba(26,58,92,0.18);">
+            <div style="font-size:10px;font-weight:700;color:#90cdf4;
+                letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">
+                Powered by Snowflake Cortex AI
+            </div>
+            <h1 style="color:#ffffff;margin:0 0 6px;font-size:20px;line-height:1.2;
+                border:none;padding:0;">
+                AI Customer Experience Engine
+            </h1>
+            <p style="color:#bee3f8;font-size:12.5px;margin:0 0 14px;
+                max-width:560px;line-height:1.6;">
+                An end-to-end AI platform that automatically enriches e-commerce
+                product reviews with sentiment scores and keyword insights — all
+                running natively inside Snowflake.
+            </p>
+            <a href="{_GH}" target="_blank"
+               style="display:inline-flex;align-items:center;gap:6px;
+                background:rgba(255,255,255,0.15);color:#fff;
+                border:1px solid rgba(255,255,255,0.30);border-radius:6px;
+                padding:5px 12px;font-size:11.5px;font-weight:600;
+                text-decoration:none;">
+                {_GH_ICON} View on GitHub
+            </a>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    _kpi_row(kpis)
-    st.divider()
-    _charts_row(dist_df, sentiment_df)
-    st.divider()
-    _top_reviews_table(top_df)
+    # ── Modules ──────────────────────────────────────────────────────────────
+    modules_html = "".join([
+        f"""
+        <div style="display:flex;align-items:flex-start;gap:14px;
+            background:#f8fbff;border:1px solid #e2e8f0;
+            border-left:4px solid {_TEAL};border-radius:7px;
+            padding:12px 14px;margin-bottom:8px;">
+            <span style="font-size:20px;flex-shrink:0;margin-top:1px;">{icon}</span>
+            <div>
+                <div style="font-size:13px;font-weight:700;color:{_NAVY};
+                    margin-bottom:3px;">{title}</div>
+                <div style="font-size:11.5px;color:#4a5568;line-height:1.5;">{desc}</div>
+            </div>
+        </div>
+        """
+        for icon, title, desc in _MODULES
+    ])
+    st.markdown(
+        f"""
+        <div style="background:#fff;border-radius:10px;padding:16px 18px;
+            box-shadow:0 1px 6px rgba(26,58,92,0.07);margin-bottom:14px;">
+            <div style="font-size:15px;font-weight:700;color:{_NAVY};margin-bottom:3px;">
+                🧩 Application Modules
+            </div>
+            <div style="font-size:11.5px;color:#718096;margin-bottom:10px;">
+                Navigate using the sidebar. Available modules depend on your role.
+            </div>
+            {modules_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # ── Pipeline ─────────────────────────────────────────────────────────────
+    steps_html = "".join([
+        f"""
+        <div style="flex:1;display:flex;align-items:flex-start;gap:8px;padding-right:10px;">
+            <div style="width:28px;height:28px;border-radius:50%;background:{_TEAL};
+                color:#fff;font-size:13px;font-weight:800;flex-shrink:0;
+                display:flex;align-items:center;justify-content:center;">{num}</div>
+            <div>
+                <div style="font-size:12.5px;font-weight:700;color:{_NAVY};
+                    margin-bottom:2px;">{title}</div>
+                <div style="font-size:11.5px;color:#718096;line-height:1.5;">{desc}</div>
+            </div>
+        </div>
+        """
+        for num, title, desc in _STEPS
+    ])
+    st.markdown(
+        f"""
+        <hr style="border:none;border-top:1px solid #e2e8f0;margin:12px 0;">
+        <div style="font-size:15px;font-weight:700;color:{_NAVY};margin-bottom:8px;">
+            How It Works
+        </div>
+        <div style="display:flex;gap:0;margin-bottom:12px;">{steps_html}</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # ── Tech stack ───────────────────────────────────────────────────────────
+    badges = "".join([
+        f"<span style='display:inline-block;background:#e8f4fd;color:{_NAVY};"
+        f"border:1px solid #bee3f8;border-radius:20px;padding:2px 10px;"
+        f"font-size:10.5px;font-weight:600;margin:0 4px 4px 0;'>{t}</span>"
+        for t in _TECH
+    ])
+    st.markdown(
+        f"""
+        <hr style="border:none;border-top:1px solid #e2e8f0;margin:12px 0;">
+        <div style="font-size:15px;font-weight:700;color:{_NAVY};margin-bottom:8px;">
+            Technology Stack
+        </div>
+        <div style="line-height:2;">{badges}</div>
+        """,
+        unsafe_allow_html=True,
+    )

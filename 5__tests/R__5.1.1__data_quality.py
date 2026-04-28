@@ -1,7 +1,7 @@
 """
 R__data_quality.py
 ==================
-Data quality tests for the CSV seed files in ``8__data/seeds/``.
+Data quality tests for the CSV seed files in ``7__data/seeds/``.
 
 Validates that the source data loaded into Snowflake meets the minimum
 structural and business-rule requirements before any transformation runs.
@@ -21,7 +21,7 @@ from pathlib import Path
 # Paths
 # ---------------------------------------------------------------------------
 ROOT       = Path(__file__).resolve().parents[1]
-SEEDS_DIR  = ROOT / "8__data" / "seeds"
+SEEDS_DIR  = ROOT / "7__data" / "seeds"
 
 REVIEWS_FILE  = SEEDS_DIR / "REVIEWS.csv"
 PRODUCTS_FILE = SEEDS_DIR / "PRODUCTS.csv"

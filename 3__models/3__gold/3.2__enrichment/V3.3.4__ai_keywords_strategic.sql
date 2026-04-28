@@ -1,24 +1,24 @@
 -- =====================================================
 -- FILE: V3.3.4__ai_keywords_strategic.sql
 -- LAYER: GOLD / AI
--- PURPOSE: Deep enrichment con LLM sobre subconjunto estratégico
+-- PURPOSE: Deep LLM enrichment on a strategic subset to control Cortex costs
 -- =====================================================
 --
--- DISEÑO:
--- Se aplica COMPLETE solo donde el valor de negocio es mayor:
---   - Reviews verificadas (señal de calidad)
---   - Reviews con votos útiles (relevancia validada por usuarios)
---   - Reviews extremas (1★ o 5★ = más información accionable)
+-- DESIGN:
+-- COMPLETE is applied only where business value is highest:
+--   - Verified purchases (quality signal)
+--   - Reviews with helpful votes (peer-validated relevance)
+--   - Extreme ratings (1★ or 5★ = highest actionable signal)
 --
--- Modelo: llama3.1-8b (sin costo en trial, suficiente para keyword extraction)
--- Límite: 500 filas → tiempo estimado ~5 min
+-- Model: llama3.1-8b (free in trial; sufficient for keyword extraction)
+-- Limit: 500 rows → estimated run time ~5 min
 -- =====================================================
 
 USE ROLE {{ environment }}_ADMIN_FR;
 USE DATABASE DB_GOLD_{{ environment }};
 USE SCHEMA AI;
 
--- DEEP ENRICHMENT — subconjunto estratégico con LIMIT para control de costos
+-- DEEP ENRICHMENT — strategic subset with LIMIT to control Cortex costs
 UPDATE TB_REVIEWS_ENRICHED t
 
 SET

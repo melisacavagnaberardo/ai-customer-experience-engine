@@ -47,6 +47,7 @@ End-to-end data platform for AI-powered customer review analysis, built on Snowf
 
 ```
 .
+├── 1__config/                  YAML configuration (docs pipeline)
 ├── 2__infra/
 │   └── migrations/             DDL scripts — roles, databases, warehouses, SPs
 │       ├── 1.1.x__*.sql        Infrastructure objects (run once, ordered)
@@ -76,13 +77,13 @@ End-to-end data platform for AI-powered customer review analysis, built on Snowf
 ├── 5__tests/                   pytest test suite
 │   ├── R__5.1.1__data_quality.py  CSV seed validation (20 tests)
 │   └── R__5.1.2__sql_utils.py     Python utility unit tests (26 tests)
-├── 6__docs/                    Sphinx HTML documentation
-│   └── source/
-├── 7__scripts/
-│   └── R__8.1.1__build_docs.py    Automated Sphinx pipeline
-├── 8__data/
+├── 6__scripts/
+│   └── R__6.1.1__build_docs.py    Automated Sphinx pipeline
+├── 7__data/
 │   └── seeds/                  PRODUCTS.csv, REVIEWS.csv (~4 994 rows)
-├── context.md                  Dataset decisions and cleaning log
+├── 8__docs/                    Sphinx HTML documentation
+│   └── source/
+├── context.md                  Dataset sampling decisions and cleaning log
 ├── pytest.ini
 ├── requirements.txt
 └── R__deploy.py                One-shot deployment orchestrator
@@ -141,6 +142,18 @@ The Streamlit app gates pages based on `CURRENT_ROLE()` after login:
 
 ---
 
+## Snowflake requirements
+
+| Feature | Required for |
+|---|---|
+| Snowflake Cortex (`SENTIMENT`, `COMPLETE`) | AI enrichment pipeline (steps V3.3.3, V3.3.4) |
+| Streamlit in Snowflake (SiS) | Production app deployment |
+| `ACCOUNT_USAGE` schema access | Cost metrics on the Admin Panel |
+
+Cortex and SiS are available on **Enterprise edition and above** (including trial accounts). `llama3.1-8b` is free during trial.
+
+---
+
 ## Prerequisites
 
 ```
@@ -188,7 +201,8 @@ Stages executed in order:
 | 1 | `run_migrations()` | Applies all `2__infra/migrations/*.sql` — creates roles, DBs, schemas, warehouses, SPs |
 | 2 | `run_seed()` | Truncates and reloads `TB_PRODUCTS_SRC` and `TB_REVIEWS_SRC` from CSV |
 | 3 | `run_schemachange()` | Runs versioned SQL models in `3__models/` via schemachange |
-| 4 | `run_docs()` | Generates Sphinx HTML documentation |
+| 4 | `run_app_deploy()` | PUTs Streamlit app files to stage and creates the SiS object |
+| 5 | `run_docs()` | Generates Sphinx HTML documentation |
 
 To run stages individually, comment/uncomment in the `__main__` block of `R__deploy.py`.
 
@@ -196,11 +210,17 @@ To run stages individually, comment/uncomment in the `__main__` block of `R__dep
 
 ## Streamlit app
 
+The application is deployed as a **Streamlit in Snowflake (SiS)** object — step 4 of the deploy pipeline handles this automatically via `run_app_deploy()`.
+
+For **local development**, the app can also be run against a live Snowflake connection:
+
 ```bash
 streamlit run 4__app/R__4__app.py
 ```
 
-Login with any Snowflake user. The app adapts its navigation to the user's role automatically.
+Navigation is role-gated automatically:
+- `<env>_REPORT_FR` → Overview, Explorer, AI Insights
+- `<env>_ADMIN_FR` → + Admin Panel
 
 ---
 
@@ -222,10 +242,10 @@ pytest
 ## Documentation
 
 ```bash
-python 7__scripts/R__8.1.1__build_docs.py
+python 6__scripts/R__6.1.1__build_docs.py
 ```
 
-Output: `6__docs/build/html/index.html`
+Output: `8__docs/build/html/index.html`
 
 ---
 

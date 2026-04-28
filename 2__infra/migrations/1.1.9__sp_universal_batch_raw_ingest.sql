@@ -37,7 +37,25 @@ def log(session, level, message):
 
 
 def main(session, SOURCE_TABLE, TARGET_NAME, ENV):
+    """Batch-ingest rows from *SOURCE_TABLE* into ``DB_RAW_{ENV}.RAW.TB_{TARGET_NAME}``.
 
+    Strategy:
+        1. Reads *SOURCE_TABLE* and computes a ``ROW_HASH`` (MD5 of all columns)
+           to enable idempotent merges.
+        2. Auto-creates the target table if it does not exist (DDL auto-commits
+           to avoid Snowflake error 90232 inside an explicit transaction).
+        3. Merges source rows into the target, inserting only new hashes —
+           duplicate rows are silently skipped.
+
+    Args:
+        session: Active Snowpark session (injected by Snowflake).
+        SOURCE_TABLE: Fully-qualified source table name.
+        TARGET_NAME: Suffix for the target table (e.g. ``REVIEWS`` → ``TB_REVIEWS``).
+        ENV: Environment prefix (DES/PRE/PRO).
+
+    Returns:
+        ``"SUCCESS: <target_table>"`` on success; raises on failure after rollback.
+    """
     target_table = f"DB_RAW_{ENV}.RAW.TB_{TARGET_NAME}"
 
     try:

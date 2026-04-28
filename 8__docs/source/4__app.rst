@@ -3,15 +3,6 @@
 
 .. py:module:: 4__app
 
-Subpackages
------------
-
-.. toctree::
-   :maxdepth: 4
-
-   4__app.1__pages
-   4__app.2__services
-
 Submodules
 ----------
 

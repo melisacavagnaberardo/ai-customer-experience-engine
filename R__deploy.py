@@ -44,7 +44,7 @@ ROLE      = ""
 BASE_DIR = Path(__file__).resolve().parent
 
 MIGRATIONS_DIR = BASE_DIR / "2__infra" / "migrations"
-SEEDS_DIR      = BASE_DIR / "8__data" / "seeds"
+SEEDS_DIR      = BASE_DIR / "7__data" / "seeds"
 
 PRODUCTS_FILE = SEEDS_DIR / "PRODUCTS.csv"
 REVIEWS_FILE  = SEEDS_DIR / "REVIEWS.csv"
@@ -233,11 +233,55 @@ def insert_dataframe(cs, df, table_name, batch_size=100000):
         print(f"[LOAD] inserted {min(i+batch_size, total)}/{total}")
 
 # =====================================================
+# LOGGING → TB_LOGS
+# =====================================================
+_log_cs  = None
+_log_tbl = ""
+
+
+def _log_init() -> None:
+    """Create TB_PIPELINE_LOGS (if needed) and open an ACCOUNTADMIN cursor."""
+    global _log_cs, _log_tbl
+    try:
+        conn = snowflake.connector.connect(
+            user=USER, password=PASSWORD, account=ACCOUNT, role="ACCOUNTADMIN"
+        )
+        _log_cs  = conn.cursor()
+        _log_tbl = f"DB_ADMIN_{ENVIRONMENT}.LOGS.TB_PIPELINE_LOGS"
+        _log_cs.execute(f"""
+            CREATE TABLE IF NOT EXISTS {_log_tbl} (
+                LOG_TIMESTAMP TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+                LEVEL         VARCHAR(10)   DEFAULT 'INFO',
+                MESSAGE       VARCHAR(4000)
+            )
+        """)
+        print(f"[LOG] Pipeline logging → {_log_tbl}")
+    except Exception as e:
+        print(f"[LOG] Warning: pipeline logging unavailable — {e}")
+        _log_cs = None
+
+
+def _log(message: str, level: str = "INFO") -> None:
+    """Insert a pipeline event into TB_PIPELINE_LOGS."""
+    print(f"[{level}] {message}")
+    if _log_cs is None:
+        return
+    try:
+        safe = message.replace("'", "''")
+        _log_cs.execute(
+            f"INSERT INTO {_log_tbl} (LEVEL, MESSAGE) VALUES ('{level}', '{safe}')"
+        )
+    except Exception as e:
+        print(f"[LOG] Warning: could not write log entry: {e}")
+
+
+# =====================================================
 # INFRA
 # =====================================================
 def run_migrations():
     """Execute all ``.sql`` migration files in ``2__infra/migrations`` in sorted order."""
     print("INFRA START")
+    _log("migration stage started — applying DDL scripts")
 
     conn = get_conn()
     cs = conn.cursor()
@@ -245,10 +289,11 @@ def run_migrations():
     try:
         for file in sorted(MIGRATIONS_DIR.glob("*.sql")):
             run_sql_file(cs, file)
-
     finally:
         cs.close()
         conn.close()
+
+    _log("migration stage completed — all DDL scripts applied")
 
 
 # =====================================================
@@ -257,6 +302,7 @@ def run_migrations():
 def run_seed():
     """Load PRODUCTS and REVIEWS seed data into SOURCE tables."""
     print("SEED START")
+    _log("seed stage started — loading CSV data into TB_REVIEWS_SRC and TB_PRODUCTS_SRC")
 
     if not PRODUCTS_FILE.exists():
         raise FileNotFoundError(PRODUCTS_FILE)
@@ -285,6 +331,8 @@ def run_seed():
         cs.close()
         conn.close()
 
+    _log("seed stage completed — TB_REVIEWS_SRC and TB_PRODUCTS_SRC loaded")
+
 
 # =====================================================
 # SCHEMACHANGE
@@ -293,6 +341,7 @@ def run_seed():
 def run_schemachange():
     """Invoke schemachange to deploy versioned SQL models under ``3__models``."""
     print("SCHEMACHANGE START")
+    _log("schemachange deploy starting — versioned SQL models")
 
     env = os.environ.copy()
     env["SNOWFLAKE_ACCOUNT"]   = ACCOUNT
@@ -304,6 +353,8 @@ def run_schemachange():
     env["SNOWFLAKE_SCHEMA"]    = "SCHEMACHANGE"
 
     vars_payload = json.dumps({"environment": ENVIRONMENT})
+
+    _log("enrichment stage started — cortex AI sentiment scoring and keyword extraction")
 
     subprocess.run([
         "schemachange",
@@ -320,15 +371,18 @@ def run_schemachange():
         "--schemachange-create-change-history-table"
     ], env=env, check=True)
 
+    _log("enrichment stage completed — cortex sentiment and keyword extraction applied")
+    _log("schemachange deploy completed — all models applied")
+
 
 # =====================================================
 # DOCS
 # =====================================================
 def run_docs():
-    """Build Sphinx HTML documentation by delegating to ``R__8.1.1__build_docs.py``."""
+    """Build Sphinx HTML documentation by delegating to ``R__6.1.1__build_docs.py``."""
     print("DOCS START")
 
-    docs_script = BASE_DIR / "7__scripts" / "R__8.1.1__build_docs.py"
+    docs_script = BASE_DIR / "6__scripts" / "R__6.1.1__build_docs.py"
 
     subprocess.run(
         ["python", str(docs_script)],
@@ -342,6 +396,7 @@ def run_docs():
 def run_app_deploy():
     """PUT app files to STREAMLIT_STAGE and create the Streamlit in Snowflake object."""
     print("APP DEPLOY START")
+    _log("app deploy started — uploading streamlit in snowflake files to stage")
 
     app_dir = BASE_DIR / "4__app"
     stage   = f"@{DB_GOLD}.APPS.STREAMLIT_STAGE"
@@ -354,11 +409,15 @@ def run_app_deploy():
     cs.execute(f"USE WAREHOUSE {WAREHOUSE}")
 
     def _put(local: Path, stage_path: str) -> None:
+        """PUT a local file to the Snowflake stage using FILE:// URI, overwriting existing files."""
         uri = "file://" + str(local.resolve()).replace("\\", "/")
         cs.execute(f"PUT '{uri}' '{stage_path}' OVERWRITE=TRUE AUTO_COMPRESS=FALSE")
         print(f"[APP] PUT {local.name} → {stage_path}")
 
     try:
+        cs.execute(f'DROP STREAMLIT IF EXISTS {DB_GOLD}.APPS.AI_CUSTOMER_EXPERIENCE_ENGINE')
+        print("[APP] dropped existing Streamlit (if any)")
+
         _put(app_dir / "environment.yml", f"{stage}/")
         _put(app_dir / "R__4__app.py",    f"{stage}/")
 
@@ -369,7 +428,7 @@ def run_app_deploy():
             _put(f, f"{stage}/2__services/")
 
         cs.execute(f"""
-            CREATE OR REPLACE STREAMLIT {DB_GOLD}.APPS."AI Customer Experience Engine"
+            CREATE STREAMLIT {DB_GOLD}.APPS.AI_CUSTOMER_EXPERIENCE_ENGINE
             ROOT_LOCATION = '{stage}'
             MAIN_FILE = '/R__4__app.py'
             QUERY_WAREHOUSE = '{WAREHOUSE}'
@@ -379,6 +438,8 @@ def run_app_deploy():
     finally:
         cs.close()
         conn.close()
+
+    _log("app deploy completed — streamlit application created successfully")
 
 
 # =====================================================
@@ -393,8 +454,10 @@ if __name__ == "__main__":
     DB_GOLD   = f"DB_GOLD_{ENVIRONMENT}"
     ROLE      = f"{ENVIRONMENT}_ADMIN_FR"
 
-    #run_migrations()
-    #run_seed()
-    #run_schemachange()
+    _log_init()
+
+    run_migrations()
+    run_seed()   
+    run_schemachange()
     run_app_deploy()
     run_docs()
