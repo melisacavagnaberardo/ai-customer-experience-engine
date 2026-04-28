@@ -278,18 +278,15 @@ def render(session: Session) -> None:
     )
 
     # ── Confidence threshold slider ───────────────────────────────────────────
-    # Persist the threshold across page navigations so the user's last value
-    # is restored when returning to Explorer from another page.
-    if "sentiment_threshold" not in st.session_state:
-        st.session_state.sentiment_threshold = 0.1
-
+    # key="sentiment_threshold" persists the value in st.session_state automatically.
+    # value=0.1 is only used on the very first render (before any interaction).
     ctrl_col, _ = st.columns([2, 5])
     with ctrl_col:
         threshold = st.slider(
             "Neutral band  ±threshold",
             min_value=0.0,
             max_value=0.5,
-            value=st.session_state.sentiment_threshold,
+            value=0.1,
             step=0.05,
             key="sentiment_threshold",
             help=(

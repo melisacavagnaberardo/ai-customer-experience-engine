@@ -184,5 +184,6 @@ def render(session: Session) -> None:
             unsafe_allow_html=True,
         )
 
+    st.markdown("<div style='margin-top:16px;'></div>", unsafe_allow_html=True)
     kw_df = _parse_keywords(kw_raw, top_n=8)
     st.markdown(_keywords_html(kw_df), unsafe_allow_html=True)
