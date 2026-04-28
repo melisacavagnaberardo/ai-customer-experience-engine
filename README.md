@@ -6,16 +6,35 @@ End-to-end data platform for AI-powered customer review analysis, built on Snowf
 
 ## Architecture overview
 
-```
-                       +-----------------------------------------------------+
-                       |                   SNOWFLAKE                          |
-                       |                                                       |
-  CSV seeds ---------> |  SOURCE --> RAW --> SILVER --> GOLD --> AI           | --> Streamlit
-  (PRODUCTS, REVIEWS)  |                                                       |
-                       |  DB_SOURCE  DB_RAW   DB_SILVER  DB_GOLD   DB_GOLD   |
-                       +-----------------------------------------------------+
-                                             |
-                              DB_ADMIN (platform, logs, schemachange)
+```mermaid
+flowchart LR
+    CSV["📄 CSV Seeds\nPRODUCTS · REVIEWS"]
+    SRC["DB_SOURCE\nStaging tables"]
+    RAW["DB_RAW\nHashed · MERGE dedup"]
+    SIL["DB_SILVER\nCleansed views"]
+    GLD["DB_GOLD · GOLD schema\nBusiness views"]
+
+    subgraph AI["DB_GOLD · AI schema · Cortex"]
+        direction TB
+        FAST["CORTEX.SENTIMENT()\nFAST_ONLY · all rows"]
+        LLM["CORTEX.COMPLETE() llama3.1-8b\nFULLY_ENRICHED · 500 strategic rows"]
+        TBL[("TB_REVIEWS_ENRICHED")]
+        STREAM["STR_REVIEWS_NEW\n+ Task DAG · hourly"]
+        FAST --> TBL
+        LLM --> TBL
+        STREAM -->|incremental| TBL
+    end
+
+    APP["🖥️ Streamlit in Snowflake\nADMIN · REPORT roles"]
+    ADM["DB_ADMIN\nLogs · SPs · Schemachange"]
+
+    CSV -->|Python connector| SRC
+    SRC -->|SP_UNIVERSAL_BATCH_RAW_INGEST| RAW
+    RAW --> SIL
+    SIL --> GLD
+    GLD --> AI
+    TBL -->|role-gated| APP
+    ADM -. operational support .-> AI
 ```
 
 | Layer | Database | Contents |
@@ -134,6 +153,7 @@ Focuses expensive COMPLETE calls on reviews with the highest business signal.
 | Role | Access |
 |---|---|
 | `<env>_ADMIN_FR` | Full platform admin — all databases, SPs, event logs |
+| `<env>_ENGINEER_FR` | Read/write on `DB_RAW` and `DB_SILVER` — pipeline development |
 | `<env>_REPORT_FR` | Read-only on `DB_GOLD_<env>.AI` — Streamlit consumer |
 
 The Streamlit app gates pages based on `CURRENT_ROLE()` after login:

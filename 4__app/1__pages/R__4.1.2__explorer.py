@@ -278,14 +278,20 @@ def render(session: Session) -> None:
     )
 
     # ── Confidence threshold slider ───────────────────────────────────────────
+    # Persist the threshold across page navigations so the user's last value
+    # is restored when returning to Explorer from another page.
+    if "sentiment_threshold" not in st.session_state:
+        st.session_state.sentiment_threshold = 0.1
+
     ctrl_col, _ = st.columns([2, 5])
     with ctrl_col:
         threshold = st.slider(
             "Neutral band  ±threshold",
             min_value=0.0,
             max_value=0.5,
-            value=0.1,
+            value=st.session_state.sentiment_threshold,
             step=0.05,
+            key="sentiment_threshold",
             help=(
                 "Cortex SENTIMENT scores within ±threshold are classified as Neutral. "
                 "Increase to widen the neutral band; decrease for stricter polarity."

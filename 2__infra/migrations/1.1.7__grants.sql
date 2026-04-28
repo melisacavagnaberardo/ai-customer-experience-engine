@@ -17,6 +17,21 @@ GRANT USAGE ON SCHEMA DB_GOLD_{{ environment }}.APPS TO ROLE {{ environment }}_A
 GRANT CREATE STREAMLIT ON SCHEMA DB_GOLD_{{ environment }}.APPS TO ROLE {{ environment }}_ADMIN_FR;
 GRANT CREATE STAGE ON SCHEMA DB_GOLD_{{ environment }}.APPS TO ROLE {{ environment }}_ADMIN_FR;
 
+-- Data engineer role (ENGINEER_FR) — RAW layer (read/write; no GOLD.AI access)
+GRANT USAGE ON DATABASE DB_RAW_{{ environment }}                                   TO ROLE {{ environment }}_ENGINEER_FR;
+GRANT USAGE ON SCHEMA   DB_RAW_{{ environment }}.RAW                               TO ROLE {{ environment }}_ENGINEER_FR;
+GRANT SELECT, INSERT, UPDATE ON ALL    TABLES IN SCHEMA DB_RAW_{{ environment }}.RAW TO ROLE {{ environment }}_ENGINEER_FR;
+GRANT SELECT, INSERT, UPDATE ON FUTURE TABLES IN SCHEMA DB_RAW_{{ environment }}.RAW TO ROLE {{ environment }}_ENGINEER_FR;
+
+-- Data engineer role (ENGINEER_FR) — SILVER layer (read-only views)
+GRANT USAGE ON DATABASE DB_SILVER_{{ environment }}                               TO ROLE {{ environment }}_ENGINEER_FR;
+GRANT USAGE ON SCHEMA   DB_SILVER_{{ environment }}.SILVER                        TO ROLE {{ environment }}_ENGINEER_FR;
+GRANT SELECT ON ALL    VIEWS IN SCHEMA DB_SILVER_{{ environment }}.SILVER         TO ROLE {{ environment }}_ENGINEER_FR;
+GRANT SELECT ON FUTURE VIEWS IN SCHEMA DB_SILVER_{{ environment }}.SILVER         TO ROLE {{ environment }}_ENGINEER_FR;
+
+-- Data engineer role (ENGINEER_FR) — warehouse access
+GRANT USAGE ON WAREHOUSE WH_ADMIN_{{ environment }} TO ROLE {{ environment }}_ENGINEER_FR;
+
 -- Consumer role (REPORT_FR) — AI layer
 GRANT USAGE ON DATABASE DB_GOLD_{{ environment }} TO ROLE {{ environment }}_REPORT_FR;
 GRANT USAGE ON SCHEMA DB_GOLD_{{ environment }}.AI TO ROLE {{ environment }}_REPORT_FR;

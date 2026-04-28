@@ -435,11 +435,13 @@ def render(session: Session) -> None:
     env = costs.get("env", "")
 
     # ── 💰 COSTS ─────────────────────────────────────────────────────────────
+    _snapshot_date = costs.get("snapshot_date")
+    _cost_source   = f"Snapshot · {_snapshot_date}" if _snapshot_date else "Last 30 days · live"
     st.markdown(
         f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:8px;'>"
         f"<div style='font-size:15px;font-weight:700;color:{_NAVY};'>💰 Costs</div>"
         f"<div style='font-size:11px;color:#718096;background:#e8f4fd;"
-        f"border:1px solid #bee3f8;border-radius:12px;padding:2px 10px;'>Last 30 days</div>"
+        f"border:1px solid #bee3f8;border-radius:12px;padding:2px 10px;'>{_cost_source}</div>"
         f"</div>",
         unsafe_allow_html=True,
     )

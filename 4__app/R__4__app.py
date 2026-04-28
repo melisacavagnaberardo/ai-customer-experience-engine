@@ -16,6 +16,7 @@ import importlib.util
 from pathlib import Path
 
 import streamlit as st
+import yaml as _yaml
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -23,6 +24,15 @@ import streamlit as st
 _APP   = Path(__file__).resolve().parent
 _PAGES = _APP / "1__pages"
 _SRVCS = _APP / "2__services"
+
+# ---------------------------------------------------------------------------
+# Project config (local dev only — 1__config/ is not staged in SiS)
+# ---------------------------------------------------------------------------
+try:
+    _cfg    = _yaml.safe_load((_APP.parent / "1__config" / "docs_config.yaml").read_text(encoding="utf-8"))
+    _GH_URL = _cfg.get("project", {}).get("github_url", "")
+except Exception:
+    _GH_URL = ""
 
 
 # ---------------------------------------------------------------------------
@@ -170,9 +180,6 @@ _GH_ICON = (
     '.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>'
     '</svg>'
 )
-_GH_URL = "https://github.com/melisacavagnaberardo/ai-customer-experience-engine-Private"
-
-
 def _render_sidebar() -> str:
     """Render the sidebar navigation and return the currently selected page name."""
     role  = st.session_state.get("role", "")

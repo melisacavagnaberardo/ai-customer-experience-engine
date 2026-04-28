@@ -2,6 +2,7 @@ project:
   name: "AI CUSTOMER EXPERIENCE ENGINE"
   version: "1.0.0"
   author: "Melisa Cavagna"
+  github_url: "https://github.com/melisacavagnaberardo/ai-customer-experience-engine"
 
 paths:
   source_dir: "8__docs/source"

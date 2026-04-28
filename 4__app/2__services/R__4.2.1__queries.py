@@ -426,25 +426,51 @@ def get_nps_summary(session: Session) -> dict:
 
 @_cache()
 def get_snowflake_costs(session: Session) -> dict:
-    """Return credit and storage costs for the last 30 days from ACCOUNT_USAGE.
+    """Return credit and storage costs for the last 30 days.
 
-    Each metric is fetched independently and set to ``None`` when the current
-    role lacks ``SNOWFLAKE.ACCOUNT_USAGE`` access; the Admin Panel shows "—"
-    in that case.
+    Query strategy:
+        1. Reads from ``DB_ADMIN_{env}.LOGS.TB_COST_SNAPSHOT`` (daily pre-aggregated row).
+           Fast single-row read; decouples the Admin Panel from ACCOUNT_USAGE latency.
+        2. Falls back to live ACCOUNT_USAGE queries when no snapshot exists yet
+           (e.g., first deploy before TSK_COST_SNAPSHOT has run).
 
-    AI credits query tries ``METERING_HISTORY`` first, then falls back to
-    ``CORTEX_FUNCTIONS_USAGE_HISTORY`` for accounts where the AI_SERVICES
-    service type is not yet available.
+    Each metric is set to ``None`` when ACCOUNT_USAGE access is denied;
+    the Admin Panel shows "—" in that case.
 
     Keys:
         wh_credits (float | None): Warehouse credits used by ``WH_ADMIN_{env}``.
         ai_credits (float | None): AI/Cortex credits consumed.
-        storage_gb (float | None): Average storage in GB across the three project databases.
+        storage_gb (float | None): Average storage in GB across the project databases.
         env (str): Environment prefix (DES/PRE/PRO).
+        snapshot_date (str | None): Date of the pre-aggregated snapshot, or None if live.
     """
     env = _env(session)
-    result: dict = {"wh_credits": None, "ai_credits": None, "storage_gb": None, "env": env}
+    result: dict = {
+        "wh_credits":    None,
+        "ai_credits":    None,
+        "storage_gb":    None,
+        "env":           env,
+        "snapshot_date": None,
+    }
 
+    # ── 1. Try pre-aggregated snapshot (fast path) ────────────────────────
+    try:
+        row = _one(session, f"""
+            SELECT WH_CREDITS, AI_CREDITS, STORAGE_GB, SNAPSHOT_DATE
+            FROM DB_ADMIN_{env}.LOGS.TB_COST_SNAPSHOT
+            ORDER BY SNAPSHOT_DATE DESC
+            LIMIT 1
+        """)
+        if row and row[0] is not None:
+            result["wh_credits"]    = float(row[0]) if row[0] is not None else 0.0
+            result["ai_credits"]    = float(row[1]) if row[1] is not None else 0.0
+            result["storage_gb"]    = float(row[2]) if row[2] is not None else 0.0
+            result["snapshot_date"] = str(row[3])   if row[3] is not None else None
+            return result
+    except Exception:
+        pass
+
+    # ── 2. Fall back to live ACCOUNT_USAGE queries ────────────────────────
     try:
         row = _one(session, f"""
             SELECT ROUND(SUM(CREDITS_USED), 2)

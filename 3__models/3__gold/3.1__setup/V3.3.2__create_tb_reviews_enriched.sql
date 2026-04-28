@@ -54,4 +54,8 @@ CREATE TABLE IF NOT EXISTS TB_REVIEWS_ENRICHED (
     KEYWORDS           STRING,
     ENRICHMENT_STATUS  VARCHAR(20),  -- 'FAST_ONLY' | 'FULLY_ENRICHED'
     CREATED_AT         TIMESTAMP_TZ
-);
+)
+-- Analytical queries filter and aggregate by product (ASIN) and rating (STARS).
+-- Clustering collocates micro-partitions on these dimensions, reducing partition
+-- scans per query. No measurable effect at 5 000 rows; material above ~1 M.
+CLUSTER BY (ASIN, STARS);
