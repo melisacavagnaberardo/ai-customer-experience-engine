@@ -51,8 +51,8 @@ CREATE TABLE IF NOT EXISTS TB_REVIEWS_ENRICHED (
     STARS              NUMBER,
     ROW_HASH           STRING,
     SENTIMENT          FLOAT,
-    KEYWORDS           STRING,
-    ENRICHMENT_STATUS  VARCHAR(20),  -- 'FAST_ONLY' | 'FULLY_ENRICHED'
+    KEYWORDS           ARRAY,        -- parsed from CORTEX.COMPLETE CSV output; use ARRAY_CONTAINS / FLATTEN
+    ENRICHMENT_STATUS  VARCHAR(20),  -- 'FAST_ONLY' | 'FULLY_ENRICHED' | 'FAILED'
     CREATED_AT         TIMESTAMP_TZ
 )
 -- Analytical queries filter and aggregate by product (ASIN) and rating (STARS).

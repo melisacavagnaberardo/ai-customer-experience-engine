@@ -177,7 +177,7 @@ def run_sql_file(cursor, file_path: Path):
 
 
 # =====================================================
-# INSERT FUNCTION
+# LOAD FUNCTIONS
 # =====================================================
 
 def clean_value(v):
@@ -234,6 +234,51 @@ def insert_dataframe(cs, df, table_name, batch_size=100000):
         cs.executemany(sql, batch)
 
         print(f"[LOAD] inserted {min(i+batch_size, total)}/{total}")
+
+
+def merge_dataframe(cs, df, table_name, key_col, batch_size=100000):
+    """Incremental MERGE of a DataFrame into a Snowflake table using a natural key.
+
+    Stages all rows into a TEMPORARY table, then issues a single MERGE statement
+    that inserts only rows whose *key_col* does not already exist in the target.
+    Existing rows are left untouched (no UPDATE), making this safe to re-run
+    without producing duplicates.
+
+    Args:
+        cs: Active Snowflake cursor.
+        df: DataFrame whose columns must match the target table schema.
+        table_name: Schema-relative or fully-qualified target table name.
+        key_col: Column name used as the MERGE join key (natural/business key).
+        batch_size: Rows per ``executemany`` call into the staging temp table.
+    """
+    df = df.copy()
+    df.columns = [c.upper() for c in df.columns]
+
+    tmp = f"{table_name}_TMP"
+    cs.execute(f"CREATE OR REPLACE TEMPORARY TABLE {tmp} LIKE {table_name}")
+
+    cols         = ",".join(df.columns)
+    placeholders = ",".join(["%s"] * len(df.columns))
+    insert_sql   = f"INSERT INTO {tmp} ({cols}) VALUES ({placeholders})"
+
+    data  = [tuple(clean_value(v) for v in row) for row in df.to_numpy()]
+    total = len(data)
+    print(f"[MERGE] staging {table_name} rows={total}")
+
+    for i in range(0, total, batch_size):
+        cs.executemany(insert_sql, data[i:i + batch_size])
+        print(f"[MERGE] staged {min(i + batch_size, total)}/{total}")
+
+    insert_vals = ",".join(f"s.{c}" for c in df.columns)
+    cs.execute(f"""
+        MERGE INTO {table_name} t
+        USING {tmp} s ON t.{key_col} = s.{key_col}
+        WHEN NOT MATCHED THEN INSERT ({cols}) VALUES ({insert_vals})
+    """)
+    result   = cs.fetchone()
+    inserted = result[0] if result else "?"
+    print(f"[MERGE] {table_name} new rows inserted={inserted} (key={key_col})")
+
 
 # =====================================================
 # LOGGING → TB_LOGS
@@ -323,10 +368,10 @@ def run_seed():
         reviews = pd.read_csv(REVIEWS_FILE)
 
         print("Loading PRODUCTS")
-        insert_dataframe(cs, products, "TB_PRODUCTS_SRC")
+        merge_dataframe(cs, products, "TB_PRODUCTS_SRC", key_col="ASIN")
 
         print("Loading REVIEWS")
-        insert_dataframe(cs, reviews, "TB_REVIEWS_SRC")
+        merge_dataframe(cs, reviews, "TB_REVIEWS_SRC", key_col="ID")
 
         print("SEED OK")
 

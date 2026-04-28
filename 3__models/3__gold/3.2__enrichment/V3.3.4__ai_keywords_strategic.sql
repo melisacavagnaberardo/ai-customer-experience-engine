@@ -15,36 +15,9 @@
 -- =====================================================
 
 USE ROLE {{ environment }}_ADMIN_FR;
-USE DATABASE DB_GOLD_{{ environment }};
-USE SCHEMA AI;
+USE DATABASE DB_ADMIN_{{ environment }};
+USE SCHEMA PLATFORM;
 
--- DEEP ENRICHMENT — strategic subset with LIMIT to control Cortex costs
-UPDATE TB_REVIEWS_ENRICHED t
-
-SET
-    KEYWORDS = SNOWFLAKE.CORTEX.COMPLETE(
-        'llama3.1-8b',
-        CONCAT(
-            'Extract 3 to 5 key drivers or topics from this customer review. ',
-            'Return ONLY a comma-separated list.\n\nReview:\n',
-            t.BODY
-        )
-    ),
-    ENRICHMENT_STATUS = 'FULLY_ENRICHED'
-
-FROM (
-    SELECT t2.ID
-    FROM TB_REVIEWS_ENRICHED t2
-    JOIN DB_GOLD_{{ environment }}.GOLD.VW_TB_REVIEWS r ON t2.ID = r.ID
-    WHERE t2.KEYWORDS IS NULL
-      AND t2.BODY IS NOT NULL
-      AND TRIM(t2.BODY) <> ''
-      AND (
-          r.VERIFIED_PURCHASE = 'TRUE'
-       OR r.FOUND_HELPFUL > 5
-       OR t2.STARS IN (1, 5)
-      )
-    LIMIT 500
-) sub
-
-WHERE t.ID = sub.ID;
+-- Delegate to SP_AI_KEYWORDS_RETRY: row-level retry with backoff,
+-- FAILED marking, and pipeline log alerts replace the raw UPDATE.
+CALL SP_AI_KEYWORDS_RETRY('{{ environment }}');
