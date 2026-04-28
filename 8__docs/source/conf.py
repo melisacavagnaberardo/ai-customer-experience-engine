@@ -1,14 +1,14 @@
 import sys
 import os
 
-sys.path.insert(0, r"C:\Users\melisa.cavagna\OneDrive - Accenture\Desktop\AI Customer Experience Engine")
-sys.path.insert(0, r"C:\Users\melisa.cavagna\OneDrive - Accenture\Desktop\AI Customer Experience Engine\4__app")
-sys.path.insert(0, r"C:\Users\melisa.cavagna\OneDrive - Accenture\Desktop\AI Customer Experience Engine\4__app\1__pages")
-sys.path.insert(0, r"C:\Users\melisa.cavagna\OneDrive - Accenture\Desktop\AI Customer Experience Engine\4__app\2__services")
-sys.path.insert(0, r"C:\Users\melisa.cavagna\OneDrive - Accenture\Desktop\AI Customer Experience Engine\5__tests")
-sys.path.insert(0, r"C:\Users\melisa.cavagna\OneDrive - Accenture\Desktop\AI Customer Experience Engine\3__models")
-sys.path.insert(0, r"C:\Users\melisa.cavagna\OneDrive - Accenture\Desktop\AI Customer Experience Engine\2__infra")
-sys.path.insert(0, r"C:\Users\melisa.cavagna\OneDrive - Accenture\Desktop\AI Customer Experience Engine\6__scripts")
+sys.path.insert(0, r"C:\Users\melisa.cavagna\Desktop\ai-customer-experience-engine")
+sys.path.insert(0, r"C:\Users\melisa.cavagna\Desktop\ai-customer-experience-engine\4__app")
+sys.path.insert(0, r"C:\Users\melisa.cavagna\Desktop\ai-customer-experience-engine\4__app\1__pages")
+sys.path.insert(0, r"C:\Users\melisa.cavagna\Desktop\ai-customer-experience-engine\4__app\2__services")
+sys.path.insert(0, r"C:\Users\melisa.cavagna\Desktop\ai-customer-experience-engine\5__tests")
+sys.path.insert(0, r"C:\Users\melisa.cavagna\Desktop\ai-customer-experience-engine\3__models")
+sys.path.insert(0, r"C:\Users\melisa.cavagna\Desktop\ai-customer-experience-engine\2__infra")
+sys.path.insert(0, r"C:\Users\melisa.cavagna\Desktop\ai-customer-experience-engine\6__scripts")
 
 from pathlib import Path as _Path
 import importlib.util as _ilu
@@ -19,7 +19,7 @@ for _m in ["snowflake", "snowflake.connector", "snowflake.connector.pandas_tools
            "snowflake.snowpark.context", "pandas", "streamlit", "pytest"]:
     sys.modules.setdefault(_m, _MM())
 
-_ROOT = _Path(r"C:\Users\melisa.cavagna\OneDrive - Accenture\Desktop\AI Customer Experience Engine")
+_ROOT = _Path(r"C:\Users\melisa.cavagna\Desktop\ai-customer-experience-engine")
 # deploy must load before test files (sql_utils imports from R__deploy)
 _py_dirs = (
     [_ROOT / "4__app" / _s for _s in ("2__services", "1__pages")]
