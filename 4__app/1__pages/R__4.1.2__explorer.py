@@ -11,6 +11,7 @@ Mapping:
 NPS = (% Promoters − % Detractors)  ·  range −100 to +100
 """
 
+import pandas as pd
 import streamlit as st
 from snowflake.snowpark import Session
 
@@ -70,11 +71,11 @@ def _kpi_card(label: str, value: str, sub: str, border: str, val_color: str) -> 
     )
 
 
-def _bars_html(df) -> str:
+def _bars_html(df, threshold: float = 0.1) -> str:
     """Return HTML for the stacked sentiment-by-star-rating bar chart.
 
     Each row shows the % positive (green), neutral (yellow), and negative (red)
-    sentiment for that star level. Includes a colour legend at the bottom.
+    sentiment for that star level. The subtitle reflects the active threshold.
     """
     if df.empty:
         return "<div style='color:#718096;font-size:12px;'>No data.</div>"
@@ -125,7 +126,9 @@ def _bars_html(df) -> str:
         f"<div style='font-size:14px;font-weight:700;color:{_NAVY};margin-bottom:3px;'>"
         f"Sentiment by Star Rating</div>"
         f"<div style='font-size:11px;color:#718096;margin-bottom:12px;'>"
-        f"% of reviews per star group — positive / neutral / negative sentiment</div>"
+        f"Positive &gt; {threshold:.2f} · "
+        f"Neutral ±{threshold:.2f} · "
+        f"Negative &lt; -{threshold:.2f}</div>"
         f"{rows}{legend}"
         f"</div>"
     )
@@ -230,7 +233,7 @@ def _nps_panel_html(promoters: int, passives: int, detractors: int, nps: int) ->
 
 
 def render(session: Session) -> None:
-    """Render the Explorer page: KPI row, NPS badge, and sentiment-by-star two-panel layout."""
+    """Render the Explorer page: KPI row, NPS badge, threshold slider, and two-panel layout."""
     st.markdown(
         f"<div style='font-size:20px;font-weight:800;color:{_NAVY};margin-bottom:3px;'>Explorer</div>"
         f"<div style='font-size:12px;color:#718096;margin-bottom:14px;'>"
@@ -239,10 +242,10 @@ def render(session: Session) -> None:
         unsafe_allow_html=True,
     )
 
+    # NPS data is threshold-independent — fetch once
     with st.spinner("Loading..."):
         try:
             nps_data = get_nps_summary(session)
-            bars_df  = get_stars_sentiment_breakdown(session)
         except Exception as e:
             st.error(f"Failed to load data: {e}")
             return
@@ -264,7 +267,7 @@ def render(session: Session) -> None:
 
     # NPS badge
     st.markdown(
-        f"<div style='margin:6px 0 10px;'>"
+        f"<div style='margin:6px 0 6px;'>"
         f"<span style='background:{nps_col}18;color:{nps_col};"
         f"border:1px solid {nps_col}50;border-radius:20px;"
         f"padding:4px 16px;font-size:12px;font-weight:600;'>"
@@ -273,10 +276,32 @@ def render(session: Session) -> None:
         unsafe_allow_html=True,
     )
 
+    # ── Confidence threshold slider ───────────────────────────────────────────
+    ctrl_col, _ = st.columns([2, 5])
+    with ctrl_col:
+        threshold = st.slider(
+            "Neutral band  ±threshold",
+            min_value=0.0,
+            max_value=0.5,
+            value=0.1,
+            step=0.05,
+            help=(
+                "Cortex SENTIMENT scores within ±threshold are classified as Neutral. "
+                "Increase to widen the neutral band; decrease for stricter polarity."
+            ),
+        )
+
+    # Bars are threshold-dependent — re-query on every slider change
+    try:
+        bars_df = get_stars_sentiment_breakdown(session, threshold=threshold)
+    except Exception as e:
+        st.error(f"Failed to load sentiment breakdown: {e}")
+        bars_df = pd.DataFrame()
+
     # ── Main section — single flex container so both panels match height ──────
     st.markdown(
         f"<div style='display:flex;gap:16px;align-items:stretch;'>"
-        f"<div style='flex:5;min-width:0;'>{_bars_html(bars_df)}</div>"
+        f"<div style='flex:5;min-width:0;'>{_bars_html(bars_df, threshold)}</div>"
         f"<div style='flex:6;min-width:0;'>{_nps_panel_html(promoters, passives, detractors, nps)}</div>"
         f"</div>",
         unsafe_allow_html=True,

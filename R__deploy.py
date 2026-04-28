@@ -29,10 +29,11 @@ import json
 # =====================================================
 # CONFIG  (populated at run time by _prompt_config)
 # =====================================================
-ACCOUNT     = ""
-USER        = ""
-PASSWORD    = ""
-ENVIRONMENT = ""
+ACCOUNT      = ""
+USER         = ""
+PASSWORD     = ""
+ENVIRONMENT  = ""
+DEPLOY_USER  = ""
 
 WAREHOUSE = ""
 DB_SOURCE = ""
@@ -57,7 +58,7 @@ def _prompt_config() -> tuple:
     """Collect Snowflake connection parameters from stdin.
 
     Returns:
-        Tuple of ``(account, user, password, environment)``.
+        Tuple of ``(account, user, password, environment, deploy_user)``.
     """
     print("=" * 55)
     print("  AI Customer Experience Engine — Deploy")
@@ -69,11 +70,12 @@ def _prompt_config() -> tuple:
     user        = input("Login name          : ").strip()
     password    = getpass.getpass("Password            : ")
     environment = input("Environment (DES/PRE/PRO): ").strip().upper()
+    deploy_user = input("Deploy user         : ").strip() or user
     print("-" * 55)
     print(f"  Connected as {user} @ {account}  [{environment}]")
     print("=" * 55)
     print()
-    return account, user, password, environment
+    return account, user, password, environment, deploy_user
 
 
 # =====================================================
@@ -155,6 +157,7 @@ def run_sql_file(cursor, file_path: Path):
 
     sql = file_path.read_text(encoding="utf-8")
     sql = sql.replace("{{ environment }}", ENVIRONMENT)
+    sql = sql.replace("{{ deploy_user }}", DEPLOY_USER)
 
     statements = split_sql(sql)
 
@@ -446,7 +449,7 @@ def run_app_deploy():
 # MAIN
 # =====================================================
 if __name__ == "__main__":
-    ACCOUNT, USER, PASSWORD, ENVIRONMENT = _prompt_config()
+    ACCOUNT, USER, PASSWORD, ENVIRONMENT, DEPLOY_USER = _prompt_config()
 
     WAREHOUSE = f"WH_ADMIN_{ENVIRONMENT}"
     DB_SOURCE = f"DB_SOURCE_{ENVIRONMENT}"
@@ -454,9 +457,9 @@ if __name__ == "__main__":
     DB_GOLD   = f"DB_GOLD_{ENVIRONMENT}"
     ROLE      = f"{ENVIRONMENT}_ADMIN_FR"
 
-    run_migrations()
-    _log_init()
-    run_seed()
-    run_schemachange()
-    run_app_deploy()
-    run_docs()
+    run_migrations()   # 1 — DDL: roles, databases, schemas, warehouses, stored procedures
+    _log_init()        #     └─ initialise pipeline logging table
+    run_seed()         # 2 — Load PRODUCTS.csv and REVIEWS.csv into SOURCE layer
+    run_schemachange() # 3 — Deploy versioned SQL models (RAW → SILVER → GOLD → AI)
+    run_app_deploy()   # 4 — Upload Streamlit files to stage and recreate SiS app
+    run_docs()         # 5 — Build Sphinx HTML documentation

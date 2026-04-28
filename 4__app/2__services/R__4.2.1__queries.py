@@ -12,7 +12,30 @@ not supported in Streamlit in Snowflake.
 """
 
 import pandas as pd
+import streamlit as st
 from snowflake.snowpark import Session
+
+_CACHE_TTL = 300  # seconds — applies to all stable aggregate queries
+
+
+def _cache(**kw):
+    """Decorator that caches query results while excluding Session from the cache key.
+
+    Wraps the decorated function so its first argument is named ``_session``
+    (leading underscore). Streamlit skips hashing any parameter whose name
+    starts with ``_``, making this compatible with all Streamlit versions
+    that support ``st.cache_data`` — including Streamlit in Snowflake.
+    """
+    def decorator(fn):
+        def _wrapper(_session, *args, **kwargs):
+            return fn(_session, *args, **kwargs)
+        _wrapper.__name__     = fn.__name__
+        _wrapper.__qualname__ = fn.__qualname__
+        _wrapper.__module__   = fn.__module__
+        _wrapper.__doc__      = fn.__doc__
+        return st.cache_data(ttl=_CACHE_TTL, show_spinner=False, **kw)(_wrapper)
+    return decorator
+
 
 # ---------------------------------------------------------------------------
 # Env resolution (cached per module load = per SiS session)
@@ -53,6 +76,7 @@ def _one(session: Session, sql: str) -> tuple:
 # Overview
 # ---------------------------------------------------------------------------
 
+@_cache()
 def get_kpis(session: Session) -> dict:
     """Return top-level KPIs for the Overview page.
 
@@ -83,6 +107,7 @@ def get_kpis(session: Session) -> dict:
     return dict(zip(keys, row)) if row else {k: None for k in keys}
 
 
+@_cache()
 def get_stars_distribution(session: Session) -> pd.DataFrame:
     """Return review count per star rating (1–5) from TB_REVIEWS_ENRICHED.
 
@@ -97,6 +122,7 @@ def get_stars_distribution(session: Session) -> pd.DataFrame:
     """)
 
 
+@_cache()
 def get_sentiment_by_stars(session: Session) -> pd.DataFrame:
     """Return average Cortex sentiment score grouped by star rating.
 
@@ -111,6 +137,7 @@ def get_sentiment_by_stars(session: Session) -> pd.DataFrame:
     """)
 
 
+@_cache()
 def get_top_reviews(session: Session, limit: int = 10) -> pd.DataFrame:
     """Return the *limit* reviews with the highest absolute sentiment score.
 
@@ -161,9 +188,17 @@ def get_reviews_filtered(
     Columns: ASIN, STARS, SENTIMENT, KEYWORDS, ENRICHMENT_STATUS, BODY_PREVIEW
     """
     t = _ai(session)
-    stars_list    = ", ".join(str(s) for s in stars) if stars else "1,2,3,4,5"
-    asin_clause   = f"AND ASIN ILIKE '%{asin_filter}%'" if asin_filter.strip() else ""
-    status_clause = f"AND ENRICHMENT_STATUS = '{status_filter}'" if status_filter != "All" else ""
+    stars_list = ", ".join(str(s) for s in stars) if stars else "1,2,3,4,5"
+
+    asin_safe   = asin_filter.replace("'", "''")
+    asin_clause = f"AND ASIN ILIKE '%{asin_safe}%'" if asin_safe.strip() else ""
+
+    _ALLOWED_STATUS = {"FAST_ONLY", "FULLY_ENRICHED"}
+    status_clause = (
+        f"AND ENRICHMENT_STATUS = '{status_filter}'"
+        if status_filter in _ALLOWED_STATUS
+        else ""
+    )
 
     return _df(session, f"""
         SELECT
@@ -187,6 +222,7 @@ def get_reviews_filtered(
 # AI Insights
 # ---------------------------------------------------------------------------
 
+@_cache()
 def get_keywords_raw(session: Session) -> pd.DataFrame:
     """Return the raw KEYWORDS column for FULLY_ENRICHED reviews.
 
@@ -204,6 +240,7 @@ def get_keywords_raw(session: Session) -> pd.DataFrame:
     """)
 
 
+@_cache()
 def get_sentiment_scatter(session: Session) -> pd.DataFrame:
     """Return star rating, sentiment, and enrichment status for all enriched reviews.
 
@@ -223,6 +260,7 @@ def get_sentiment_scatter(session: Session) -> pd.DataFrame:
     """)
 
 
+@_cache()
 def get_enrichment_coverage(session: Session) -> dict:
     """Return enrichment coverage counts for data quality monitoring.
 
@@ -252,6 +290,7 @@ def get_enrichment_coverage(session: Session) -> dict:
 # Admin
 # ---------------------------------------------------------------------------
 
+@_cache()
 def get_enrichment_status_breakdown(session: Session) -> pd.DataFrame:
     """Return review count grouped by (STARS, ENRICHMENT_STATUS).
 
@@ -268,6 +307,7 @@ def get_enrichment_status_breakdown(session: Session) -> pd.DataFrame:
     """)
 
 
+@_cache()
 def get_ingestion_timeline(session: Session) -> pd.DataFrame:
     """Return review ingestion volume bucketed by hour.
 
@@ -322,6 +362,7 @@ def get_event_logs(session: Session, limit: int = 50) -> pd.DataFrame:
             return pd.DataFrame(columns=["TIMESTAMP", "SEVERITY", "MESSAGE"])
 
 
+@_cache()
 def get_null_stats(session: Session) -> dict:
     """Return counts of records missing sentiment, keywords, or body text.
 
@@ -349,6 +390,7 @@ def get_null_stats(session: Session) -> dict:
 # Explorer — NPS
 # ---------------------------------------------------------------------------
 
+@_cache()
 def get_nps_summary(session: Session) -> dict:
     """Return NPS component counts derived from star ratings.
 
@@ -382,6 +424,7 @@ def get_nps_summary(session: Session) -> dict:
 # Admin — Costs (ACCOUNT_USAGE, falls back gracefully if access denied)
 # ---------------------------------------------------------------------------
 
+@_cache()
 def get_snowflake_costs(session: Session) -> dict:
     """Return credit and storage costs for the last 30 days from ACCOUNT_USAGE.
 
@@ -449,6 +492,7 @@ def get_snowflake_costs(session: Session) -> dict:
     return result
 
 
+@_cache()
 def get_pipeline_stage_durations(session: Session) -> pd.DataFrame:
     """Return per-stage pipeline duration in seconds, derived from TB_PIPELINE_LOGS.
 
@@ -505,6 +549,7 @@ def get_pipeline_stage_durations(session: Session) -> pd.DataFrame:
 # AI Insights — product ranking
 # ---------------------------------------------------------------------------
 
+@_cache()
 def get_best_products(session: Session, limit: int = 5) -> pd.DataFrame:
     """Return the top *limit* products ranked by average Cortex sentiment score.
 
@@ -529,6 +574,7 @@ def get_best_products(session: Session, limit: int = 5) -> pd.DataFrame:
     """)
 
 
+@_cache()
 def get_worst_products(session: Session, limit: int = 5) -> pd.DataFrame:
     """Return the bottom *limit* products ranked by average Cortex sentiment score.
 
@@ -553,27 +599,120 @@ def get_worst_products(session: Session, limit: int = 5) -> pd.DataFrame:
     """)
 
 
-def get_stars_sentiment_breakdown(session: Session) -> pd.DataFrame:
+@_cache()
+def get_cortex_cost_breakdown(session: Session) -> pd.DataFrame:
+    """Return Cortex AI credit usage broken down by function for the last 30 days.
+
+    Query strategy:
+        1. Tries ``CORTEX_FUNCTIONS_USAGE_HISTORY`` (credits + function name).
+        2. Falls back to ``QUERY_HISTORY`` call counts if the view is unavailable
+           or returns no FUNCTION_NAME column.
+
+    Columns: FUNCTION_NAME, CALL_COUNT, CREDITS (None when only call counts available)
+    """
+    try:
+        df = _df(session, """
+            SELECT
+                FUNCTION_NAME,
+                COUNT(*)                    AS CALL_COUNT,
+                ROUND(SUM(CREDITS_USED), 6) AS CREDITS
+            FROM SNOWFLAKE.ACCOUNT_USAGE.CORTEX_FUNCTIONS_USAGE_HISTORY
+            WHERE START_TIME >= DATEADD('day', -30, CURRENT_TIMESTAMP())
+            GROUP BY FUNCTION_NAME
+            ORDER BY CREDITS DESC
+        """)
+        if not df.empty and "FUNCTION_NAME" in df.columns:
+            return df
+    except Exception:
+        pass
+
+    try:
+        return _df(session, """
+            SELECT
+                CASE
+                    WHEN QUERY_TEXT ILIKE '%CORTEX.COMPLETE%'  THEN 'COMPLETE'
+                    WHEN QUERY_TEXT ILIKE '%CORTEX.SENTIMENT%' THEN 'SENTIMENT'
+                    ELSE 'OTHER'
+                END                AS FUNCTION_NAME,
+                COUNT(*)           AS CALL_COUNT,
+                NULL::FLOAT        AS CREDITS
+            FROM SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY
+            WHERE START_TIME >= DATEADD('day', -30, CURRENT_TIMESTAMP())
+              AND QUERY_TEXT ILIKE '%SNOWFLAKE.CORTEX%'
+              AND ERROR_CODE IS NULL
+            GROUP BY 1
+            ORDER BY CALL_COUNT DESC
+        """)
+    except Exception:
+        return pd.DataFrame(columns=["FUNCTION_NAME", "CALL_COUNT", "CREDITS"])
+
+
+def get_task_status(session: Session) -> pd.DataFrame:
+    """Return current state and last-run result for the AI enrichment task DAG.
+
+    Combines INFORMATION_SCHEMA.TASKS (enabled/suspended state + schedule)
+    with INFORMATION_SCHEMA.TASK_HISTORY (last completed run per task).
+
+    Columns: NAME, ENABLED, SCHEDULE, LAST_RUN, LAST_RESULT
+    """
+    env = _env(session)
+    try:
+        tasks = _df(session, f"""
+            SELECT
+                TASK_NAME    AS NAME,
+                UPPER(STATE) AS ENABLED,
+                SCHEDULE
+            FROM DB_GOLD_{env}.INFORMATION_SCHEMA.TASKS
+            WHERE TASK_SCHEMA = 'AI'
+              AND TASK_NAME IN ('TSK_AI_SENTIMENT', 'TSK_AI_KEYWORDS')
+        """)
+        history = _df(session, f"""
+            SELECT
+                TASK_NAME,
+                STATE                                              AS LAST_RESULT,
+                TO_CHAR(COMPLETED_TIME, 'YYYY-MM-DD HH24:MI UTC') AS LAST_RUN
+            FROM TABLE(DB_GOLD_{env}.INFORMATION_SCHEMA.TASK_HISTORY(
+                SCHEDULED_TIME_RANGE_START => DATEADD('day', -7, CURRENT_TIMESTAMP()),
+                RESULT_LIMIT => 500
+            ))
+            WHERE TASK_NAME IN ('TSK_AI_SENTIMENT', 'TSK_AI_KEYWORDS')
+            QUALIFY ROW_NUMBER() OVER (
+                PARTITION BY TASK_NAME ORDER BY COMPLETED_TIME DESC NULLS LAST
+            ) = 1
+        """)
+        if tasks.empty:
+            return pd.DataFrame(columns=["NAME", "ENABLED", "SCHEDULE", "LAST_RUN", "LAST_RESULT"])
+        merged = tasks.merge(history, left_on="NAME", right_on="TASK_NAME", how="left")
+        merged = merged.drop(columns=["TASK_NAME"], errors="ignore")
+        merged[["LAST_RUN", "LAST_RESULT"]] = merged[["LAST_RUN", "LAST_RESULT"]].fillna("—")
+        return merged
+    except Exception:
+        return pd.DataFrame(columns=["NAME", "ENABLED", "SCHEDULE", "LAST_RUN", "LAST_RESULT"])
+
+
+@_cache()
+def get_stars_sentiment_breakdown(
+    session: Session, threshold: float = 0.1
+) -> pd.DataFrame:
     """Return percentage breakdown of positive/neutral/negative sentiment per star rating.
 
-    Sentiment thresholds:
-        Positive  → SENTIMENT >  0.1
-        Neutral   → SENTIMENT between −0.1 and 0.1
-        Negative  → SENTIMENT < −0.1
-
-    Ordered by STARS DESC (5 → 1) for top-down display in the Explorer bars chart.
+    Args:
+        threshold: Half-width of the neutral band. Scores within
+            ``[-threshold, +threshold]`` are classified as Neutral;
+            above as Positive; below as Negative. Default 0.1.
 
     Columns: STARS, PCT_POSITIVE, PCT_NEUTRAL, PCT_NEGATIVE
     """
-    t = _ai(session)
+    t  = _ai(session)
+    th = round(float(threshold), 4)
     return _df(session, f"""
         SELECT
             STARS,
-            ROUND(100.0 * SUM(CASE WHEN SENTIMENT >  0.1 THEN 1 ELSE 0 END)
+            ROUND(100.0 * SUM(CASE WHEN SENTIMENT >  {th} THEN 1 ELSE 0 END)
                 / NULLIF(COUNT(*), 0), 1) AS PCT_POSITIVE,
-            ROUND(100.0 * SUM(CASE WHEN SENTIMENT BETWEEN -0.1 AND 0.1 THEN 1 ELSE 0 END)
+            ROUND(100.0 * SUM(CASE WHEN SENTIMENT BETWEEN -{th} AND {th} THEN 1 ELSE 0 END)
                 / NULLIF(COUNT(*), 0), 1) AS PCT_NEUTRAL,
-            ROUND(100.0 * SUM(CASE WHEN SENTIMENT < -0.1 THEN 1 ELSE 0 END)
+            ROUND(100.0 * SUM(CASE WHEN SENTIMENT < -{th} THEN 1 ELSE 0 END)
                 / NULLIF(COUNT(*), 0), 1) AS PCT_NEGATIVE
         FROM {t}.TB_REVIEWS_ENRICHED
         WHERE STARS IS NOT NULL AND SENTIMENT IS NOT NULL
