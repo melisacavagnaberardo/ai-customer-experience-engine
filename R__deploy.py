@@ -25,6 +25,9 @@ import pandas as pd
 import math
 import os
 import json
+from dotenv import load_dotenv
+
+load_dotenv()  # populate os.environ from .env if present (file is git-ignored)
 
 # =====================================================
 # CONFIG  (populated at run time by _prompt_config)
@@ -57,6 +60,13 @@ REVIEWS_FILE  = SEEDS_DIR / "REVIEWS.csv"
 def _prompt_config() -> tuple:
     """Collect Snowflake connection parameters from stdin.
 
+    Values are pre-filled from environment variables (or a ``.env`` file loaded
+    at module start). Any variable that is already set is skipped — the prompt
+    is shown only for missing values.
+
+    Supported variables: ``SNOWFLAKE_ACCOUNT``, ``SNOWFLAKE_USER``,
+    ``SNOWFLAKE_PASSWORD``, ``SNOWFLAKE_ENVIRONMENT``, ``SNOWFLAKE_DEPLOY_USER``.
+
     Returns:
         Tuple of ``(account, user, password, environment, deploy_user)``.
     """
@@ -66,11 +76,14 @@ def _prompt_config() -> tuple:
     print("  Account identifier format: ORGNAME-ACCOUNTNAME")
     print("  Example: QVHYDSB-JY18582")
     print("-" * 55)
-    account     = input("Account identifier  : ").strip()
-    user        = input("Login name          : ").strip()
-    password    = getpass.getpass("Password            : ")
-    environment = input("Environment (DES/PRE/PRO): ").strip().upper()
-    deploy_user = input("Deploy user         : ").strip() or user
+
+    account     = os.getenv("SNOWFLAKE_ACCOUNT")     or input("Account identifier   : ").strip()
+    user        = os.getenv("SNOWFLAKE_USER")        or input("Login name           : ").strip()
+    password    = os.getenv("SNOWFLAKE_PASSWORD")    or getpass.getpass("Password             : ")
+    environment = os.getenv("SNOWFLAKE_ENVIRONMENT") or input("Environment (DES/PRE/PRO): ").strip()
+    environment = environment.strip().upper()
+    deploy_user = os.getenv("SNOWFLAKE_DEPLOY_USER") or input("Deploy user (blank = login): ").strip() or user
+
     print("-" * 55)
     print(f"  Connected as {user} @ {account}  [{environment}]")
     print("=" * 55)
